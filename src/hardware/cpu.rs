@@ -1,15 +1,21 @@
-use crate::hardware::ram::RAM;
-
 use bitflags::bitflags;
+use crate::hardware::memory::Memory;
+
+macro_rules! unsupported_opcode {
+    ( $( $opcode:expr )+ ) => {
+        panic!("Unsupported opcode: {:X}", $($opcode),+)
+    };
+}
 
 bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Default, Clone, Copy)]
     struct Flags: u8 {
         const Carry = 1 << 4;
         const Zero = 1 << 7;
     }
 }
 
+#[derive(Default, Debug)]
 struct Registers {
     flags: Flags,
 
@@ -43,7 +49,7 @@ impl Registers {
         }
     }
     
-    fn get_r8(&self, reg: u8, ram: &RAM) -> u8 {
+    fn get_r8(&self, reg: u8, memory: &Memory) -> u8 {
         match reg {
             0 => self.b,
             1 => self.c,
@@ -51,13 +57,13 @@ impl Registers {
             3 => self.e,
             4 => self.h,
             5 => self.l,
-            6 => ram[self.get_hl()],
+            6 => memory[self.get_hl()],
             7 => self.a,
             _ => panic!("literaly impossible. it should only be 3 bits wide"),
         }
     }
 
-    fn set_r8(&mut self, reg: u8, value: u8, ram: &mut RAM) {
+    fn set_r8(&mut self, reg: u8, value: u8, memory: &mut Memory) {
         match reg {
             0 => self.b = value,
             1 => self.c = value,
@@ -65,7 +71,7 @@ impl Registers {
             3 => self.e = value,
             4 => self.h = value,
             5 => self.l = value,
-            6 => ram[self.get_hl()] = value,
+            6 => memory[self.get_hl()] = value,
             7 => self.a = value,
 
             _ => panic!("opcode segment should only be 3 bits wide"),
@@ -161,35 +167,36 @@ impl Registers {
     }
 }
 
+#[derive(Default, Debug)]
 pub struct CPU {
     regs: Registers,
 }
 
 impl CPU {
-    fn execute_opcode(&mut self, ram: &mut RAM) {
-        let opcode = ram[self.regs.pc];
+    pub fn execute_opcode(&mut self, memory: &mut Memory) {
+        let opcode = memory[self.regs.pc];
         let block = opcode >> 6;
 
         self.regs.pc += 1;
         
         match block {
-            0x0 => self.execute_block_0_opcode(opcode, ram),
-            0x1 => self.execute_block_1_opcode(opcode, ram),
-            0x2 => self.execute_block_2_opcode(opcode, ram),
-            0x3 => self.execute_block_3_opcode(opcode, ram),
+            0x0 => self.execute_block_0_opcode(opcode, memory),
+            0x1 => self.execute_block_1_opcode(opcode, memory),
+            0x2 => self.execute_block_2_opcode(opcode, memory),
+            0x3 => self.execute_block_3_opcode(opcode, memory),
 
             _ => panic!("opcode block should only be 2 bits wide")
         };
     }
     
-    fn execute_block_0_opcode(&mut self, opcode: u8, ram: &mut RAM) {
+    fn execute_block_0_opcode(&mut self, opcode: u8, memory: &mut Memory) {
         if opcode == 0x00 {
             return; // nop
         }
 
         {
             let r16 = (opcode & 0x30) >> 4;
-            let imm16 = (ram[self.regs.pc + 1] as u16) << 8 | ram[self.regs.pc] as u16;
+            let imm16 = (memory[self.regs.pc + 1] as u16) << 8 | memory[self.regs.pc] as u16;
 
             match opcode & 0xF {
                 0x1 => {
@@ -201,13 +208,13 @@ impl CPU {
                 0x2 => {
                     // ld [r16mem], a
                     let addr = self.regs.get_r16_mem(r16);
-                    ram[addr] = self.regs.a;
+                    memory[addr] = self.regs.a;
                     return;
                 },
                 0xA => {
                     // ld a, [r16mem]
                     let addr = self.regs.get_r16_mem(r16);
-                    self.regs.a = ram[addr];
+                    self.regs.a = memory[addr];
                     return;
                 },
 
@@ -231,8 +238,8 @@ impl CPU {
 
             if opcode == 0x08 {
                 // ld [imm16], sp
-                ram[imm16] = (self.regs.sp & 0xFF) as u8;
-                ram[imm16 + 1] = (self.regs.sp >> 8) as u8;
+                memory[imm16] = (self.regs.sp & 0xFF) as u8;
+                memory[imm16 + 1] = (self.regs.sp >> 8) as u8;
                 self.regs.pc += 2;
                 return;
             }
@@ -243,17 +250,17 @@ impl CPU {
             match opcode & 0x3 {
                 0x4 => {
                     // inc r8
-                    self.regs.set_r8(r8, self.regs.get_r8(r8, ram) + 1, ram);
+                    self.regs.set_r8(r8, self.regs.get_r8(r8, memory) + 1, memory);
                     return;
                 },
                 0x5 => {
                     // dec r8
-                    self.regs.set_r8(r8, self.regs.get_r8(r8, ram) - 1, ram);
+                    self.regs.set_r8(r8, self.regs.get_r8(r8, memory) - 1, memory);
                     return;
                 },
                 0x6 => {
                     // ld r8, imm8
-                    self.regs.set_r8(r8, ram[self.regs.pc], ram);
+                    self.regs.set_r8(r8, memory[self.regs.pc], memory);
                     self.regs.pc += 1;
                     return;
                 },
@@ -304,31 +311,39 @@ impl CPU {
         panic!("Invalid opcode: {opcode}");
     }
 
-    fn execute_block_1_opcode(&mut self, opcode: u8, ram: &mut RAM) {
-        
+    fn execute_block_1_opcode(&mut self, opcode: u8, memory: &mut Memory) {
+        if opcode == 0x76 {
+            // TODO: halt opcode
+            return;
+        }
+
+        let source_reg = opcode & 0x07;
+        let dest_reg = (opcode >> 3) & 0x07;
+
+        self.regs.set_r8(dest_reg, self.regs.get_r8(source_reg, memory), memory);
     }
 
-    fn execute_block_2_opcode(&mut self, opcode: u8, ram: &mut RAM) {
+    fn execute_block_2_opcode(&mut self, opcode: u8, memory: &mut Memory) {
         // All 8-bit arithmetic
-        let operand = self.regs.get_r8(opcode & 0x3, ram);
+        let operand = self.regs.get_r8(opcode & 0x3, memory);
 
         match opcode & 0xF8 {
             0x80 => self.regs.add_acc(operand),
-            0x84 => {
+            0x88 => {
                 self.regs.add_acc(operand);
                 self.regs.add_acc((self.regs.flags & Flags::Carry).bits());
             },
-            0x88 => self.regs.sub_acc(operand),
-            0x8c => {
+            0x90 => self.regs.sub_acc(operand),
+            0x98 => {
                 self.regs.sub_acc(operand);
                 self.regs.sub_acc((self.regs.flags & Flags::Carry).bits());
             },
-            0x90 => self.regs.a &= operand,
-            0x94 => self.regs.a ^= operand,
-            0x98 => self.regs.a |= operand,
-            0x9c => {},
+            0xA0 => self.regs.a &= operand,
+            0xA8 => self.regs.a ^= operand,
+            0xB0 => self.regs.a |= operand,
+            0xB8 => {},
 
-            _ => panic!("{opcode} is not supported")
+            _ => unsupported_opcode!(opcode),
         }
         
         if self.regs.a == 0 {
@@ -339,11 +354,11 @@ impl CPU {
         }
     }
 
-    fn execute_block_3_opcode(&mut self, opcode: u8, ram: &mut RAM) {
+    fn execute_block_3_opcode(&mut self, opcode: u8, memory: &mut Memory) {
         
     }
 
-    fn execute_cb_opcode(&mut self, ram: &mut RAM) {
+    fn execute_cb_opcode(&mut self, memory: &mut Memory) {
 
     }
 }

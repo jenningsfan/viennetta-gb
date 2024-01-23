@@ -1,2 +1,2 @@
-pub mod libretro_core;
+pub mod libretro;
 mod io;

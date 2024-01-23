@@ -1,13 +1,15 @@
 use std::ffi::CString;
 
 use rust_libretro::{
-    contexts::*, core::Core, env_version, input_descriptors, proc::*, retro_core, sys::*, types::*,
+    contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
 }; // TODO: see which imports are necessary
-use crate::hardware::io::{WIDTH, HEIGHT};
+
+use crate::hardware::{GameBoy, io::{WIDTH, HEIGHT}};
+use crate::ui::libretro::libretro_utils::convert_data_to_vec;
 
 #[derive(CoreOptions)]
 struct ViennettaCore {
-    pixels: Vec<u8>,
+    gameboy: GameBoy,
 }
 
 impl Core for ViennettaCore {
@@ -38,10 +40,6 @@ impl Core for ViennettaCore {
         }
     }
 
-    fn on_init(&mut self, ctx: &mut InitContext) {
-        
-    }
-
     fn on_set_environment(&mut self, initial: bool, ctx: &mut SetEnvironmentContext) {
         if !initial {
             return;
@@ -55,33 +53,29 @@ impl Core for ViennettaCore {
             game: Option<retro_game_info>,
             _ctx: &mut LoadGameContext,
         ) -> Result<(), Box<dyn std::error::Error>> {
-        dbg!("loading");
-        dbg!(game);
+        
+        if let Some(game) = game {
+            if game.data.is_null() {
+                panic!("game.data is NULL");
+            }
+
+            let data = convert_data_to_vec(game.data, game.size);
+            self.gameboy = GameBoy::default();
+            self.gameboy.load_rom(&data);
+        }
         Ok(())
     }
 
     #[inline]
     fn on_run(&mut self, ctx: &mut RunContext, _delta_us: Option<i64>) {
-            let color_a = 0xFF;
-            let color_b = !color_a;
-
-            for (i, chunk) in self.pixels.chunks_exact_mut(4).enumerate() {
-                let x = (i % WIDTH as usize) as f64 / WIDTH as f64;
-                let y = (i / WIDTH as usize) as f64 / HEIGHT as f64;
-
-                let total = (50.0f64 * x).floor() + (37.5f64 * y).floor();
-                let even = total as usize % 2 == 0;
-
-                let color = if even { color_a } else { color_b };
-
-                chunk.fill(color);
-            }
-
-            ctx.draw_frame(self.pixels.as_ref(), WIDTH as u32, HEIGHT as u32, WIDTH as usize * 4);
+        self.gameboy.run_frame();
         
+        let pixels = [0xFF; WIDTH * HEIGHT * 4];
+        ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 4);
+    
     }
 }
 
 retro_core!(ViennettaCore {
-     pixels: vec![0; WIDTH * HEIGHT * 4],
+    gameboy: GameBoy::default(),
 });
