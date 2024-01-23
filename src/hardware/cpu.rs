@@ -33,23 +33,6 @@ struct Registers {
 }
 
 impl Registers {
-    fn default() -> Self {
-        Self {
-            flags: Flags::empty(),
-
-            a: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-            e: 0,  
-            h: 0,
-            l: 0,
-        
-            sp: 0,
-            pc: 0,
-        }
-    }
-    
     fn get_r8(&self, reg: u8, memory: &Memory) -> u8 {
         match reg {
             0 => self.b,
@@ -298,7 +281,7 @@ impl CPU {
             0x3F => {
                 return;
             },
-            
+
             _ => {},
         };
 
