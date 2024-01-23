@@ -1,9 +1,10 @@
 use bitflags::bitflags;
 use crate::hardware::memory::Memory;
 
+// TODO: variable length opcodes
 macro_rules! unsupported_opcode {
-    ( $( $opcode:expr )+ ) => {
-        panic!("Unsupported opcode: {:X}", $($opcode),+)
+    ( $( $opcode:expr )+, $( $pc:expr )+ ) => {
+        panic!("{:02X} is not supported at {:04X}", $($opcode),+, $($pc),+)
     };
 }
 
@@ -59,6 +60,7 @@ impl Registers {
             5 => self.l,
             6 => memory[self.get_hl()],
             7 => self.a,
+
             _ => panic!("literaly impossible. it should only be 3 bits wide"),
         }
     }
@@ -129,14 +131,14 @@ impl Registers {
         }
     }
 
-    fn get_r16_mem(&self, reg: u8) -> u16 {
+    fn get_r16_mem(&mut self, reg: u8) -> u16 {
         let hl = self.get_hl();
 
         match reg {
             0 => (self.b as u16) << 8 | self.c as u16,
             1 => (self.d as u16) << 8 | self.e as u16,
-            2 => hl + 1,
-            3 => hl - 1,
+            2 => {self.set_hl(hl + 1); hl},
+            3 => {self.set_hl(hl - 1); hl},
 
             _ => panic!("opcode segment should only be 3 bits wide"),
         }
@@ -195,7 +197,7 @@ impl CPU {
         }
 
         {
-            let r16 = (opcode & 0x30) >> 4;
+            let r16 = (opcode >> 4) & 0x03;
             let imm16 = (memory[self.regs.pc + 1] as u16) << 8 | memory[self.regs.pc] as u16;
 
             match opcode & 0xF {
@@ -233,6 +235,7 @@ impl CPU {
                     self.regs.set_hl(self.regs.get_hl() + self.regs.get_r16(r16));
                     return;
                 },
+
                 _ => {},
             };
 
@@ -246,7 +249,8 @@ impl CPU {
         }
 
         {
-            let r8 = (opcode & 0x30) >> 4;
+            let r8 = (opcode >> 4) & 0x03;
+            
             match opcode & 0x3 {
                 0x4 => {
                     // inc r8
@@ -264,6 +268,7 @@ impl CPU {
                     self.regs.pc += 1;
                     return;
                 },
+
                 _ => {},
             };
         }
@@ -293,6 +298,7 @@ impl CPU {
             0x3F => {
                 return;
             },
+            
             _ => {},
         };
 
@@ -308,7 +314,7 @@ impl CPU {
             return;
         }
 
-        panic!("Invalid opcode: {opcode}");
+        unsupported_opcode!(opcode, self.regs.pc);
     }
 
     fn execute_block_1_opcode(&mut self, opcode: u8, memory: &mut Memory) {
@@ -341,9 +347,9 @@ impl CPU {
             0xA0 => self.regs.a &= operand,
             0xA8 => self.regs.a ^= operand,
             0xB0 => self.regs.a |= operand,
-            0xB8 => {},
+            0xB8 => {}, // todo: fill in
 
-            _ => unsupported_opcode!(opcode),
+            _ => unsupported_opcode!(opcode, self.regs.pc),
         }
         
         if self.regs.a == 0 {
@@ -355,10 +361,17 @@ impl CPU {
     }
 
     fn execute_block_3_opcode(&mut self, opcode: u8, memory: &mut Memory) {
-        
+        if opcode == 0xCB {
+            self.execute_cb_opcode(memory[self.regs.pc], memory);
+            self.regs.pc += 1;
+            return;
+        }
+
+        unsupported_opcode!(opcode, self.regs.pc);
     }
 
-    fn execute_cb_opcode(&mut self, memory: &mut Memory) {
-
+    fn execute_cb_opcode(&mut self, opcode: u8, memory: &mut Memory) {
+        println!("CB opcode!!!");
+        unsupported_opcode!(opcode, self.regs.pc);
     }
 }
