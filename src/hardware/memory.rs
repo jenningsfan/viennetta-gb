@@ -1,24 +1,27 @@
 use std::ops::{Index, IndexMut};
 use crate::hardware::boot_rom::BOOT_ROM;
 
+const BOOT_ROM_REGISTER: u16 = 0xFF50;
+
 #[derive(Debug)]
 pub struct Memory {
-    memory: Vec<u8>
+    memory: Vec<u8>,
+    boot_rom: Vec<u8>,
 }
 
 impl Memory {
     pub fn load_rom(&mut self, rom: &[u8]) {
-        self.memory[0x100..0x100 + rom.len()].copy_from_slice(rom);
+        self.memory[0x000..0x100 + rom.len()].copy_from_slice(rom);
     }
 }
 
 impl Default for Memory {
     fn default() -> Self {
-        let mut ram = vec![0; 0xFFFF];
-        ram[0..0x100].copy_from_slice(&BOOT_ROM);
+        let memory = vec![0; 0xFFFF];
 
         Self {
-            memory: ram
+            memory,
+            boot_rom: BOOT_ROM.to_vec(),
         }
     }
 }
@@ -27,6 +30,10 @@ impl Index<usize> for Memory {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
+        if index < 0x100 && self.memory[BOOT_ROM_REGISTER as usize] == 0 {
+            return &self.boot_rom[index];
+        }
+
         &self.memory[index]
     }
 }

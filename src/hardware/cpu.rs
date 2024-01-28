@@ -1,7 +1,6 @@
 use bitflags::bitflags;
 use crate::hardware::memory::Memory;
 
-// TODO: variable length opcodes
 macro_rules! unsupported_opcode {
     ( $( $opcode:expr )+, $( $pc:expr )+ ) => {
         panic!("{:02X} is not supported at {:04X}", $($opcode),+, $($pc),+)
@@ -24,7 +23,7 @@ struct Registers {
     b: u8,
     c: u8,
     d: u8,
-    e: u8,  
+    e: u8,
     h: u8,
     l: u8,
     
@@ -114,6 +113,29 @@ impl Registers {
         }
     }
 
+    fn set_r16_stk(&mut self, reg: u8, value: u16) {
+        match reg {
+            0 => {
+                self.b = (value >> 8) as u8;
+                self.c = (value & 0x0F) as u8;
+            },
+            1 => {
+                self.d = (value >> 8) as u8;
+                self.e = (value & 0x0F) as u8;
+            },
+            2 => {
+                self.h = (value >> 8) as u8;
+                self.l = (value & 0x0F) as u8;
+            },
+            3 => {
+                self.a = (value >> 8) as u8;
+                self.flags = Flags::from_bits((value & 0x0F) as u8).unwrap();
+            },
+
+            _ => panic!("opcode segment should only be 3 bits wide"),
+        }
+    }
+
     fn get_r16_mem(&mut self, reg: u8) -> u16 {
         let hl = self.get_hl();
 
@@ -150,6 +172,17 @@ impl Registers {
             self.flags -= Flags::Carry;
         }
     }
+
+    fn condition(&self, condition: u8) -> bool {
+        match condition {
+            0x0 => !self.flags.contains(Flags::Zero),
+            0x1 => self.flags.contains(Flags::Zero),
+            0x2 => !self.flags.contains(Flags::Carry),
+            0x3 => self.flags.contains(Flags::Carry),
+
+            _ => panic!("should only be 2 bits wide"),
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -173,7 +206,7 @@ impl CPU {
             _ => panic!("opcode block should only be 2 bits wide")
         };
     }
-    
+
     fn execute_block_0_opcode(&mut self, opcode: u8, memory: &mut Memory) {
         if opcode == 0x00 {
             return; // nop
@@ -258,27 +291,71 @@ impl CPU {
         
         match opcode {
             0x07 => {
+                // rlca
+                self.regs.flags = Flags::default();
+                if self.regs.a & 0x80 == 1 {
+                    self.regs.flags |= Flags::Carry;
+                }
+
+                self.regs.a = self.regs.a.rotate_left(1);
+
                 return;
             },
             0x0F => {
+                // rrca
+                self.regs.flags = Flags::default();
+                if self.regs.a & 0x01 == 1 {
+                    self.regs.flags |= Flags::Carry;
+                }
+                
+                self.regs.a = self.regs.a.rotate_right(1);
+
                 return;
             },
             0x17 => {
-                return;
+                // rla
+                let mut shifted = self.regs.a << 1;
+                if self.regs.flags.contains(Flags::Carry) {
+                    shifted |= 1;
+                }
+                if self.regs.a & 0x80 == 1 {
+                    self.regs.flags |= Flags::Carry
+                }
+                self.regs.a = shifted;
+
+                return;     
             },
             0x1F => {
+                // rra
+                let mut shifted = self.regs.a >> 1;
+                if self.regs.flags.contains(Flags::Carry) {
+                    shifted |= 0x80;
+                }
+                if self.regs.a & 0x01 == 1 {
+                    self.regs.flags |= Flags::Carry
+                }
+                self.regs.a = shifted;
+
                 return;
             },
             0x27 => {
+                // daa
+                todo!("DAA instruction");
                 return;
             },
             0x2F => {
+                // cpl
+                self.regs.a = !self.regs.a;
                 return;
             },
             0x37 => {
+                // scf
+                self.regs.flags |= Flags::Carry;
                 return;
             },
             0x3F => {
+                // ccf
+                self.regs.flags ^= Flags::Carry;
                 return;
             },
 
@@ -286,14 +363,30 @@ impl CPU {
         };
 
         if opcode == 0x18 {
+            // jr imm8
+            let offset = memory[self.regs.pc] as i16;
+            self.regs.pc = (self.regs.pc as i16 + offset) as u16;
+
             return;
         }
 
         if opcode & 0x27 == 0x20 {
+            // jr cond, imm8
+            let condition = self.regs.condition((opcode & 0x18) >> 3);
+            if condition {
+                let offset = memory[self.regs.pc] as i16;
+                self.regs.pc = (self.regs.pc as i16 + offset) as u16;
+            }
+            else {
+                self.regs.pc += 1; // imm8
+            }
+
             return;
         }
 
         if opcode == 0x10 {
+            // stop
+            todo!("Stop opcode");
             return;
         }
 
@@ -303,6 +396,7 @@ impl CPU {
     fn execute_block_1_opcode(&mut self, opcode: u8, memory: &mut Memory) {
         if opcode == 0x76 {
             // TODO: halt opcode
+            todo!("Halt opcode");
             return;
         }
 
@@ -317,20 +411,27 @@ impl CPU {
         let operand = self.regs.get_r8(opcode & 0x3, memory);
 
         match opcode & 0xF8 {
-            0x80 => self.regs.add_acc(operand),
+            0x80 => self.regs.add_acc(operand), // add a, r8
             0x88 => {
+                // adc a, r8
                 self.regs.add_acc(operand);
                 self.regs.add_acc((self.regs.flags & Flags::Carry).bits());
             },
-            0x90 => self.regs.sub_acc(operand),
+            0x90 => self.regs.sub_acc(operand), // sub a, r8
             0x98 => {
+                // subc a, r8
                 self.regs.sub_acc(operand);
                 self.regs.sub_acc((self.regs.flags & Flags::Carry).bits());
             },
-            0xA0 => self.regs.a &= operand,
-            0xA8 => self.regs.a ^= operand,
-            0xB0 => self.regs.a |= operand,
-            0xB8 => {}, // todo: fill in
+            0xA0 => self.regs.a &= operand, // and a, r8
+            0xA8 => self.regs.a ^= operand, // xor a, r8
+            0xB0 => self.regs.a |= operand, // or a, r8
+            0xB8 => {
+                // cp a, r8
+                let old_a = self.regs.a;
+                self.regs.sub_acc(operand);
+                self.regs.a = old_a;
+            },
 
             _ => unsupported_opcode!(opcode, self.regs.pc),
         }
@@ -344,6 +445,141 @@ impl CPU {
     }
 
     fn execute_block_3_opcode(&mut self, opcode: u8, memory: &mut Memory) {
+        let imm8 = memory[self.regs.pc];
+        let imm16 = (memory[self.regs.pc + 1] as u16) >> 8 | (memory[self.regs.pc] as u16);
+        let condition = self.regs.condition((opcode & 0x18) >> 3);
+
+        self.regs.pc += 1;
+        match opcode {
+            0xC6 => {
+                // add a, r8
+                self.regs.add_acc(imm8);
+                return;
+            },
+            0xCE => {
+                // adc a, r8
+                self.regs.add_acc(imm8);
+                self.regs.add_acc((self.regs.flags & Flags::Carry).bits());
+                return;
+            },
+            0xD6 => {
+                // sub a, r8
+                self.regs.sub_acc(imm8);
+                return;
+            },
+            0xDE => {
+                // subc a, r8
+                self.regs.sub_acc(imm8);
+                self.regs.sub_acc((self.regs.flags & Flags::Carry).bits());
+                return;
+            },
+            0xE6 => {
+                // and a, r8
+                self.regs.a &= imm8;
+                return;
+            }
+            0xEE => {
+                // xor a, r8
+                self.regs.a ^= imm8;
+                return;
+            } 
+            0xF6 => {
+                // or a, r8
+                self.regs.a |= imm8;
+                return;
+            }
+            0xFE => {
+                // cp a, r8
+                let old_a = self.regs.a;
+                self.regs.sub_acc(imm8);
+                self.regs.a = old_a;
+                return;
+            },
+
+            _ => {},
+        }
+        self.regs.pc -= 1; // this is to counteract the increase because it wasn't needed
+
+        if (opcode & 0x27 == 0x00 && condition) || opcode == 0xC9 || opcode == 0xD9 {
+            // ret cond, ret, reti
+            self.regs.pc = self.pop_from_stack(memory);
+
+            if opcode == 0xD9 {
+                todo!("EI");
+                return;    
+            }
+
+            return;
+        }
+
+        if opcode & 0x27 == 0x02 {
+            // jp cond, imm16
+            if condition {
+                self.regs.pc = imm16;
+            }
+            else {
+                self.regs.pc += 2;
+            }
+            
+            return;
+        }
+        
+        if opcode == 0xC3 {
+            // jp imm16
+            self.regs.pc = imm16;
+            return;
+        }
+
+        if opcode == 0xE9 {
+            // jp hl
+            self.regs.pc = self.regs.get_hl();
+            return;
+        }
+
+        if opcode == 0xCD {
+            // call imm16
+            self.push_to_stack(self.regs.pc, memory);
+            self.regs.pc = imm16;
+            return;
+        } 
+
+        if opcode & 0x07 == 0x07 {
+            // rst tgst3
+            let target = (opcode & 0x38) as u16;
+            self.push_to_stack(self.regs.pc, memory);
+            self.regs.pc = target;
+
+            return;
+        }
+
+        let r16 = (opcode & 0x30) >> 3;
+        match opcode & 0x0F {
+            0x01 => {
+                // pop r16stk
+                let value = self.pop_from_stack(memory);
+                self.regs.set_r16_stk(r16, value);
+                return;
+            },
+            0x05 => {
+                // push r16stk
+                self.push_to_stack(self.regs.get_r16_stk(r16), memory);
+                return;
+            },
+            _ => {},
+        }
+
+        if opcode == 0xF3 {
+            // di
+            todo!("DI");
+            return;
+        }
+
+        if opcode == 0xFB {
+            // ei
+            todo!("EI");
+            return;
+        }
+
         if opcode == 0xCB {
             self.execute_cb_opcode(memory[self.regs.pc], memory);
             self.regs.pc += 1;
@@ -354,7 +590,18 @@ impl CPU {
     }
 
     fn execute_cb_opcode(&mut self, opcode: u8, memory: &mut Memory) {
-        println!("CB opcode!!!");
-        unsupported_opcode!(opcode, self.regs.pc);
+        unsupported_opcode!(0xCB00 | opcode as u16, self.regs.pc);
+    }
+
+    fn push_to_stack(&mut self, value: u16, memory: &mut Memory) {
+        memory[self.regs.sp] = (value >> 8) as u8;
+        memory[self.regs.sp + 1] = (value & 0xFF) as u8;
+        self.regs.sp += 2;
+    }
+
+    fn pop_from_stack(&mut self, memory: &mut Memory) -> u16 {
+        let value = (memory[self.regs.sp] as u16) << 8 | memory[self.regs.sp] as u16;
+        self.regs.sp -= 2;
+        value
     }
 }
