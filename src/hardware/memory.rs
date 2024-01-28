@@ -11,7 +11,7 @@ pub struct Memory {
 
 impl Memory {
     pub fn load_rom(&mut self, rom: &[u8]) {
-        self.memory[0x000..0x100 + rom.len()].copy_from_slice(rom);
+        self.memory[0x000..rom.len()].copy_from_slice(rom);
     }
 }
 

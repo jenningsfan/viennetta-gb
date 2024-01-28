@@ -62,6 +62,10 @@ impl Registers {
         }
     }
 
+    fn apply_r8(&mut self, reg: u8, memory: &mut Memory, func: fn(u8) -> u8) {
+        self.set_r8(reg, func(self.get_r8(reg, memory)), memory);
+    }
+
     fn get_hl(&self) -> u16 {
         (self.h as u16) << 8 | self.l as u16
     }
@@ -267,7 +271,7 @@ impl CPU {
         {
             let r8 = (opcode >> 4) & 0x03;
             
-            match opcode & 0x3 {
+            match opcode & 0x7 {
                 0x4 => {
                     // inc r8
                     self.regs.set_r8(r8, self.regs.get_r8(r8, memory) + 1, memory);
@@ -568,40 +572,205 @@ impl CPU {
             _ => {},
         }
 
-        if opcode == 0xF3 {
-            // di
-            todo!("DI");
-            return;
-        }
-
-        if opcode == 0xFB {
-            // ei
-            todo!("EI");
-            return;
-        }
-
-        if opcode == 0xCB {
-            self.execute_cb_opcode(memory[self.regs.pc], memory);
-            self.regs.pc += 1;
-            return;
+        match opcode {
+            0xE2 => {
+                // ldh [c], a
+                memory[0xFF00 + self.regs.c as u16] = self.regs.a;
+                return;
+            },
+            0xE0 => {
+                // ldh [imm8], a
+                memory[0xFF00 + imm8 as u16] = self.regs.a;
+                self.regs.pc += 1;
+                return;
+            },
+            0xEC => {
+                // ld [imm16], a
+                memory[imm16] = self.regs.a;
+                self.regs.pc += 2;
+                return;
+            },
+            0xF2 => {
+                // ldh a, [c]
+                self.regs.a = memory[0xFF00 + self.regs.c as u16];
+                return;
+            },
+            0xF0 => {
+                // ldh a, [imm8]
+                self.regs.a = memory[0xFF00 + imm8 as u16];
+                self.regs.pc += 1;
+                return;
+            },
+            0xFC => {
+                // ld a, [imm16]
+                self.regs.a = memory[imm16];
+                self.regs.pc += 2;
+                return;
+            },
+            0xE8 => {
+                // add sp, imm8
+                self.regs.sp += imm8 as u16;
+                self.regs.pc += 1;
+                return;
+            },
+            0xF8 => {
+                // ld hl, sp + imm8
+                self.regs.set_hl(self.regs.sp + imm8 as u16);
+                self.regs.pc += 1;
+                return;
+            },
+            0xF9 => {
+                // ld sp, hl
+                self.regs.sp = self.regs.get_hl();
+                return;
+            },
+            0xF3 => {
+                // di
+                todo!("DI");
+                return;
+            },
+            0xFB => {
+                // ei
+                todo!("EI");
+                return;
+            },
+            0xCB => {
+                self.execute_cb_opcode(memory[self.regs.pc], memory);
+                self.regs.pc += 1;
+                return;
+            },
+            _ => {},
         }
 
         unsupported_opcode!(opcode, self.regs.pc);
     }
 
     fn execute_cb_opcode(&mut self, opcode: u8, memory: &mut Memory) {
+        let reg = opcode & 0x03;
+        let bit = 1 << ((opcode & 0x38) >> 3);
+        
+        match opcode & 0xC0 {
+            0x00 => {
+                match opcode & 0xF8 {
+                    0x00 => {
+                        // rlc r8
+                        let mut value = self.regs.get_r8(reg, memory);
+                        self.regs.flags = Flags::default();
+
+                        if value & 0x80 == 1 {
+                            self.regs.flags |= Flags::Carry;
+                        }
+                        value = value.rotate_left(1);
+                        self.regs.set_r8(reg, value, memory);
+
+                        return;
+                    },
+                    0x08 => {
+                        // rrc r8
+                        let mut value = self.regs.get_r8(reg, memory);
+                        self.regs.flags = Flags::default();
+                        if value & 0x01 == 1 {
+                            self.regs.flags |= Flags::Carry;
+                        }
+                        
+                        value = value.rotate_right(1);
+                        self.regs.set_r8(reg, value, memory);
+                        return;
+                    },
+                    0x10 => {
+                        // rl r8
+                        let value = self.regs.get_r8(reg, memory);
+                        let mut shifted = value << 1;
+
+                        if self.regs.flags.contains(Flags::Carry) {
+                            shifted |= 1;
+                        }
+                        if value & 0x80 == 1 {
+                            self.regs.flags |= Flags::Carry
+                        }
+
+                        self.regs.set_r8(reg, shifted, memory);
+                        return;     
+                    },
+                    0x18 => {
+                        // rr r8
+                        let value = self.regs.get_r8(reg, memory);
+                        let mut shifted = value >> 1;
+
+                        if self.regs.flags.contains(Flags::Carry) {
+                            shifted |= 0x80;
+                        }
+                        if value & 0x01 == 1 {
+                            self.regs.flags |= Flags::Carry
+                        }
+                        
+                        self.regs.set_r8(reg, shifted, memory);
+                        return;
+                    },
+                    0x20 => {
+                        // sla r8
+                        if self.regs.get_r8(reg, memory) & 0x40 == 1 {
+                            self.regs.flags |= Flags::Carry;
+                        }
+                        self.regs.apply_r8(reg, memory, |r| ((r as i8) << 1) as u8);
+                        return;
+                    },
+                    0x28 => {
+                        // sra r8
+                        if self.regs.get_r8(reg, memory) & 0x40 == 1 {
+                            self.regs.flags |= Flags::Carry;
+                        }
+                        self.regs.apply_r8(reg, memory, |r| ((r as i8) >> 1) as u8);
+                        return;
+                    },
+                    0x30 => {
+                        self.regs.apply_r8(reg, memory, |r| (r & 0x0F << 4) | r >> 4);
+                        return;
+                    }
+                    0x38 => {
+                        // srl r8
+                        if self.regs.get_r8(reg, memory) & 0x40 == 1 {
+                            self.regs.flags |= Flags::Carry;
+                        }
+                        self.regs.apply_r8(reg, memory, |r| r >> 1);
+                        return;
+                    },
+
+                    _ => {},
+                }
+            },
+            0x40 => {
+                // bit b3, r8
+                if self.regs.get_r8(reg, memory) & bit == 0 {
+                    self.regs.flags |= Flags::Zero;
+                }
+                return;
+            },
+            0x80 => {
+                // res b3, r8
+                self.regs.set_r8(reg, self.regs.get_r8(reg, memory) & !bit, memory);
+                return;
+            },
+            0xC0 => {
+                // set b3, r8
+                self.regs.set_r8(reg, self.regs.get_r8(reg, memory) | bit, memory);
+                return;
+            },
+            _ => {},
+        }
+
         unsupported_opcode!(0xCB00 | opcode as u16, self.regs.pc);
     }
 
     fn push_to_stack(&mut self, value: u16, memory: &mut Memory) {
-        memory[self.regs.sp] = (value >> 8) as u8;
-        memory[self.regs.sp + 1] = (value & 0xFF) as u8;
-        self.regs.sp += 2;
+        memory[self.regs.sp - 1] = (value >> 8) as u8;
+        memory[self.regs.sp - 2] = (value & 0x0F) as u8;
+        self.regs.sp -= 2;
     }
 
     fn pop_from_stack(&mut self, memory: &mut Memory) -> u16 {
-        let value = (memory[self.regs.sp] as u16) << 8 | memory[self.regs.sp] as u16;
-        self.regs.sp -= 2;
+        let value = (memory[self.regs.sp + 1] as u16) << 8 | memory[self.regs.sp] as u16;
+        self.regs.sp += 2;
         value
     }
 }
