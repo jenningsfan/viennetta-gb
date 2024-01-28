@@ -62,7 +62,7 @@ impl Registers {
         }
     }
 
-    fn apply_r8(&mut self, reg: u8, memory: &mut Memory, func: fn(u8) -> u8) {
+    fn apply_r8<F: Fn(u8) -> u8>(&mut self, reg: u8, memory: &mut Memory, func: F) {
         self.set_r8(reg, func(self.get_r8(reg, memory)), memory);
     }
 
@@ -104,6 +104,10 @@ impl Registers {
 
             _ => panic!("opcode segment should only be 3 bits wide"),
         }
+    }
+
+    fn apply_r16(&mut self, reg: u8, func: fn(u16) -> u16) {
+        self.set_r16(reg, func(self.get_r16(reg)));
     }
 
     fn get_r16_stk(&self, reg: u8) -> u16 {
@@ -192,6 +196,7 @@ impl Registers {
 #[derive(Default, Debug)]
 pub struct CPU {
     regs: Registers,
+    interrupts_enabled: bool,
 }
 
 impl CPU {
@@ -242,12 +247,12 @@ impl CPU {
 
                 0x3 => {
                     // inc r16
-                    self.regs.set_r16(r16, self.regs.get_r16(r16) + 1);
+                    self.regs.apply_r16(r16, |r| r + 1);
                     return;
                 },
                 0xB => {
                     // dec r16
-                    self.regs.set_r16(r16, self.regs.get_r16(r16) - 1);
+                    self.regs.apply_r16(r16, |r| r - 1);
                     return;
                 },
                 0x9 => {
@@ -509,8 +514,8 @@ impl CPU {
             self.regs.pc = self.pop_from_stack(memory);
 
             if opcode == 0xD9 {
-                todo!("EI");
-                return;    
+                self.interrupts_enabled = true;
+                return;
             }
 
             return;
@@ -626,12 +631,12 @@ impl CPU {
             },
             0xF3 => {
                 // di
-                todo!("DI");
+                self.interrupts_enabled = false;
                 return;
             },
             0xFB => {
                 // ei
-                todo!("EI");
+                self.interrupts_enabled = true;
                 return;
             },
             0xCB => {
@@ -748,12 +753,12 @@ impl CPU {
             },
             0x80 => {
                 // res b3, r8
-                self.regs.set_r8(reg, self.regs.get_r8(reg, memory) & !bit, memory);
+                self.regs.apply_r8(reg, memory, |reg| reg & !bit);
                 return;
             },
             0xC0 => {
                 // set b3, r8
-                self.regs.set_r8(reg, self.regs.get_r8(reg, memory) | bit, memory);
+                self.regs.apply_r8(reg, memory, |reg| reg | bit);
                 return;
             },
             _ => {},
@@ -764,7 +769,7 @@ impl CPU {
 
     fn push_to_stack(&mut self, value: u16, memory: &mut Memory) {
         memory[self.regs.sp - 1] = (value >> 8) as u8;
-        memory[self.regs.sp - 2] = (value & 0x0F) as u8;
+        memory[self.regs.sp - 2] = (value & 0xFF) as u8;
         self.regs.sp -= 2;
     }
 
