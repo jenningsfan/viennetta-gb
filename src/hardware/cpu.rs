@@ -9,8 +9,6 @@ macro_rules! unsupported_opcode {
     };
 }
 
-
-
 #[derive(Default, Debug)]
 pub struct CPU {
     regs: Registers,
