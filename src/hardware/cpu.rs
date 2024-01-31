@@ -405,7 +405,7 @@ impl CPU {
                 self.regs.pc += 1;
                 return;
             },
-            0xEC => {
+            0xEA => {
                 // ld [imm16], a
                 memory[imm16] = self.regs.a;
                 self.regs.pc += 2;
