@@ -9,10 +9,10 @@ pub fn convert_gameboy_to_rgb565(gameboy: LcdPixels) -> Vec<u8> {
 
     for pixel in gameboy {
         result.push(match pixel {
-            Colour::White => 0x0000,
+            Colour::White => 0xFFFF,
             Colour::LightGrey => 0xB573,
             Colour::DarkGrey => 0x6B4B,
-            Colour::Black => 0xFFFF,
+            Colour::Black => 0x0000,
         });
     }
 

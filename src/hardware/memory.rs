@@ -49,10 +49,10 @@ impl Index<usize> for Memory {
             return &self.game_rom[index];
         }
         else if index < 0xA000 {
-            return &self.vram[dbg!(dbg!(index) - 0x8000)];
+            return &self.vram[index - 0x8000];
         }
         else if index < 0xC000 {
-            return &self.external_ram[dbg!(dbg!(index) - 0xA000)];
+            return &self.external_ram[index - 0xA000];
         }
         else if index < 0xE000 {
             return &self.wram[index - 0xC000];

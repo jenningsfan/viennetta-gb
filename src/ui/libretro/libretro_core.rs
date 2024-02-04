@@ -71,8 +71,6 @@ impl Core for ViennettaCore {
     #[inline]
     fn on_run(&mut self, ctx: &mut RunContext, _delta_us: Option<i64>) {
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
-        //let pixels = [0xFF; WIDTH * HEIGHT * 4];
-        //dbg!(&pixels);
         ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
     }
 }

@@ -7,4 +7,3 @@ pub fn convert_data_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
     // Convert the slice to a Vec<u8>
     data_slice.to_vec()
 }
-
