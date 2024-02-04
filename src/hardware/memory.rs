@@ -87,6 +87,14 @@ impl Index<u16> for Memory {
     }
 }
 
+impl Index<i32> for Memory {
+    type Output = u8;
+
+    fn index(&self, index: i32) -> &Self::Output {
+        self.index(index as usize)
+    }
+}
+
 impl IndexMut<usize> for Memory {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         if index < 0x100 && self[BOOT_ROM_REGISTER as usize] == 0 {
@@ -128,6 +136,12 @@ impl IndexMut<usize> for Memory {
 
 impl IndexMut<u16> for Memory {
     fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+        self.index_mut(index as usize)
+    }
+}
+
+impl IndexMut<i32> for Memory {
+    fn index_mut(&mut self, index: i32) -> &mut Self::Output {
         self.index_mut(index as usize)
     }
 }

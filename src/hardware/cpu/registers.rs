@@ -5,7 +5,7 @@ bitflags! {
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub struct Flags: u8 {
         const Zero = 1 << 7;
-        const Sub = 1 << 6;
+        const Negative = 1 << 6;
         const HalfCarry = 1 << 5;
         const Carry = 1 << 4;
     }
@@ -171,9 +171,45 @@ impl Registers {
         self.a = result.0;
     }
 
+    pub fn add_r8(&mut self, reg: u8, value: u8, memory: &mut Memory) {
+        let result = self.get_r8(reg, memory).overflowing_add(value);
+        
+        self.flags = Flags::empty();
+
+        if result.0 == 0 {
+            self.flags |= Flags::Zero;
+        }
+        if result.1 {
+            self.flags |= Flags::Carry;
+        }
+        if (((value & 0xF) + (self.a & 0xF)) & 0x10) == 0x10 {
+            self.flags |= Flags::HalfCarry;
+        }
+
+        self.set_r8(reg, result.0, memory);
+    }
+
+    pub fn sub_r8(&mut self, reg: u8, value: u8, memory: &mut Memory)  {
+        let result = self.get_r8(reg, memory).overflowing_sub(value);
+
+        self.flags = Flags::Negative;
+
+        if result.0 == 0 {
+            self.flags |= Flags::Zero;
+        }
+        if result.1 {
+            self.flags |= Flags::Carry;
+        }
+        if (((self.a & 0xF) - (value & 0xF)) & 0x10) == 0x10 {
+            self.flags |= Flags::HalfCarry;
+        }
+
+        self.set_r8(reg, result.0, memory);
+    }
+
     pub fn sub_acc(&mut self, value: u8) {
         let result = self.a.overflowing_sub(value);
-        self.flags = Flags::Sub;
+        self.flags = Flags::Negative;
 
         if result.0 == 0 {
             self.flags |= Flags::Zero;
@@ -345,6 +381,6 @@ mod tests {
         assert_eq!(regs.h, 0xEE);
         assert_eq!(regs.l, 0xFF);
         assert_eq!(regs.a, 0x00);
-        assert_eq!(regs.flags, Flags::Zero | Flags::Sub);
+        assert_eq!(regs.flags, Flags::Zero | Flags::Negative);
     }
 }

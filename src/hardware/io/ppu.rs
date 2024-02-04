@@ -42,7 +42,7 @@ impl PPU {
         self.lcd
     }
 
-    pub fn run_cycle(&mut self, memory: &Memory) {
+    pub fn run_cycle(&mut self, memory: &mut Memory) {
         let tile = self.get_tile(0, memory);
         for i in 0..8 {
             for j in 0..8 {
@@ -55,7 +55,7 @@ impl PPU {
         // TODO: this isn't very nice. redo to use a range
         let mut tiles_bytes = vec![];
         for i in 0..16 {
-            tiles_bytes.push(memory[0x8000 + offset + i]);
+            tiles_bytes.push(memory[0x8800 + offset + i]);
         }
         
         let mut tiles = [Colour::Black; 64];
