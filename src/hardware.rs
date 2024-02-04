@@ -11,8 +11,9 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    pub fn run_frame(&mut self) {
+    pub fn run_frame(&mut self) -> io::LcdPixels {
         self.cpu.execute_opcode(&mut self.memory);
+        self.io.run_cycles(1)
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) {

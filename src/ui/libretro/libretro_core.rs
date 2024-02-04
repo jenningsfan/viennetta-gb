@@ -6,6 +6,7 @@ use rust_libretro::{
 
 use crate::hardware::{GameBoy, io::{WIDTH, HEIGHT}};
 use crate::ui::libretro::libretro_utils::convert_data_to_vec;
+use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 
 #[derive(CoreOptions)]
 struct ViennettaCore {
@@ -51,9 +52,10 @@ impl Core for ViennettaCore {
     fn on_load_game(
             &mut self,
             game: Option<retro_game_info>,
-            _ctx: &mut LoadGameContext,
+            ctx: &mut LoadGameContext,
         ) -> Result<(), Box<dyn std::error::Error>> {
-        
+        ctx.set_pixel_format(PixelFormat::RGB565);
+
         if let Some(game) = game {
             if game.data.is_null() {
                 panic!("game.data is NULL");
@@ -68,11 +70,10 @@ impl Core for ViennettaCore {
 
     #[inline]
     fn on_run(&mut self, ctx: &mut RunContext, _delta_us: Option<i64>) {
-        self.gameboy.run_frame();
-        
-        let pixels = [0xFF; WIDTH * HEIGHT * 4];
-        ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 4);
-    
+        let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
+        //let pixels = [0xFF; WIDTH * HEIGHT * 4];
+        //dbg!(&pixels);
+        ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
     }
 }
 

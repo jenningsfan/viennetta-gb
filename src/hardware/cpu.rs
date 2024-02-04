@@ -19,7 +19,7 @@ impl CPU {
     pub fn execute_opcode(&mut self, memory: &mut Memory) {
         let opcode = memory[self.regs.pc];
         let block = opcode >> 6;
-
+        
         self.regs.pc += 1;
         
         match block {
