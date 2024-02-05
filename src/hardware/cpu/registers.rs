@@ -11,7 +11,7 @@ bitflags! {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Registers {
     pub flags: Flags,
 
@@ -25,6 +25,25 @@ pub struct Registers {
     
     pub sp: u16,
     pub pc: u16,
+}
+
+impl Default for Registers {
+    fn default() -> Self {
+        Self {
+            flags: Flags::default(),
+            
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            h: 0,
+            l: 0,
+            
+            sp: 0xFFFE,
+            pc: 0x100,
+        }
+    }
 }
 
 impl Registers {

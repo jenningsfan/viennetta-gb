@@ -1,5 +1,5 @@
 [package]
-name = "viennetta-gb"
+name = "viennetta_gb"
 version = "0.1.0"
 edition = "2021"
 

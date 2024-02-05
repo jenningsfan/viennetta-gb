@@ -20,17 +20,22 @@ impl CPU {
     pub fn execute_opcode(&mut self, memory: &mut Memory) -> u8 {
         let opcode = memory[self.regs.pc];
         let block = opcode >> 6;
-        
+        println!("{:04X}", self.regs.pc);
         self.regs.pc += 1;
         
-        match block {
+        //println!("{:01X}", block);
+        let cycles = match block {
             0x0 => self.execute_block_0_opcode(opcode, memory),
             0x1 => self.execute_block_1_opcode(opcode, memory),
             0x2 => self.execute_block_2_opcode(opcode, memory),
             0x3 => self.execute_block_3_opcode(opcode, memory),
 
             _ => panic!("opcode block should only be 2 bits wide")
-        }
+        };
+
+        dbg!(&self.regs);
+        //dbg!(self.regs.a);
+        cycles
     }
 
     fn execute_block_0_opcode(&mut self, opcode: u8, memory: &mut Memory) -> u8 {
@@ -102,7 +107,8 @@ impl CPU {
         }
 
         {
-            let r8 = (opcode >> 4) & 0x03;
+            let r8 = (opcode >> 3) & 0x07;
+            dbg!(r8);
             const HL_POINT: u8 = 6;
 
             match opcode & 0x7 {
@@ -342,7 +348,7 @@ impl CPU {
 
     fn execute_block_3_opcode(&mut self, opcode: u8, memory: &mut Memory) -> u8 {
         let imm8 = memory[self.regs.pc];
-        let imm16 = (memory[self.regs.pc + 1] as u16) >> 8 | (memory[self.regs.pc] as u16);
+        let imm16 = (memory[self.regs.pc + 1] as u16) << 8 | (memory[self.regs.pc] as u16);
         let condition = self.regs.condition((opcode & 0x18) >> 3);
 
         self.regs.pc += 1;
@@ -696,7 +702,7 @@ impl CPU {
                     },
                     0x30 => {
                         self.regs.apply_r8(reg, memory, |r| (r & 0x0F << 4) | r >> 4);
-                        return;
+                        return 13;
                     }
                     0x38 => {
                         // srl r8
@@ -704,7 +710,7 @@ impl CPU {
                             self.regs.flags |= Flags::Carry;
                         }
                         self.regs.apply_r8(reg, memory, |r| r >> 1);
-                        return;
+                        return 13;
                     },
 
                     _ => {},
@@ -715,17 +721,17 @@ impl CPU {
                 if self.regs.get_r8(reg, memory) & bit == 0 {
                     self.regs.flags |= Flags::Zero;
                 }
-                return;
+                return 13;
             },
             0x80 => {
                 // res b3, r8
                 self.regs.apply_r8(reg, memory, |reg| reg & !bit);
-                return;
+                return 13;
             },
             0xC0 => {
                 // set b3, r8
                 self.regs.apply_r8(reg, memory, |reg| reg | bit);
-                return;
+                return 13;
             },
             _ => {},
         }

@@ -3,3 +3,7 @@ blank.gb
 blank.txt
 Tetris (World) (Rev 1).gb
 tarpaulin-report.html
+cpu_instrs/
+*.bak
+test (2).gb
+test.gb
