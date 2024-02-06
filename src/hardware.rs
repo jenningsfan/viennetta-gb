@@ -7,9 +7,10 @@ mod boot_rom;
 
 #[derive(Default, Debug)]
 pub struct GameBoy {
+    pub breakpoint: bool, 
+    pub cpu: cpu::CPU,
     io: io::IO,
-    cpu: cpu::CPU,
-    memory: memory::Memory,
+    pub memory: memory::Memory,
 }
 
 impl GameBoy {

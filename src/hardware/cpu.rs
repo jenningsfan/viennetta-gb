@@ -12,7 +12,7 @@ macro_rules! unsupported_opcode {
 
 #[derive(Default, Debug)]
 pub struct CPU {
-    regs: Registers,
+    pub regs: Registers,
     interrupts_enabled: bool,
 }
 
@@ -20,7 +20,7 @@ impl CPU {
     pub fn execute_opcode(&mut self, memory: &mut Memory) -> u8 {
         let opcode = memory[self.regs.pc];
         let block = opcode >> 6;
-        println!("{:04X}", self.regs.pc);
+        
         self.regs.pc += 1;
         
         //println!("{:01X}", block);
@@ -33,7 +33,7 @@ impl CPU {
             _ => panic!("opcode block should only be 2 bits wide")
         };
 
-        dbg!(&self.regs);
+        //dbg!(&self.regs);
         //dbg!(self.regs.a);
         cycles
     }
@@ -108,7 +108,6 @@ impl CPU {
 
         {
             let r8 = (opcode >> 3) & 0x07;
-            dbg!(r8);
             const HL_POINT: u8 = 6;
 
             match opcode & 0x7 {
@@ -231,7 +230,7 @@ impl CPU {
 
         if opcode == 0x18 {
             // jr imm8
-            let offset = memory[self.regs.pc] as i16;
+            let offset = memory[self.regs.pc] as i8 as i16 + 1;
             self.regs.pc = (self.regs.pc as i16 + offset) as u16;
 
             return 3;
@@ -241,7 +240,7 @@ impl CPU {
             // jr cond, imm8
             let condition = self.regs.condition((opcode & 0x18) >> 3);
             if condition {
-                let offset = memory[self.regs.pc] as i16;
+                let offset = memory[self.regs.pc] as i8 as i16 + 1;
                 self.regs.pc = (self.regs.pc as i16 + offset) as u16;
 
                 return 3;
