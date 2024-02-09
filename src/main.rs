@@ -41,13 +41,7 @@ fn main() {
                         breakpoint.retain(|x| *x != offset);
                     }
                     "r" => {
-                        println!("AF: {:02x}{:02x}", gameboy.cpu.regs.a, gameboy.cpu.regs.flags);
-                        println!("BC: {:02x}{:02x}", gameboy.cpu.regs.b, gameboy.cpu.regs.c);
-                        println!("DE: {:02x}{:02x}", gameboy.cpu.regs.d, gameboy.cpu.regs.e);
-                        println!("HL: {:02x}{:02x}", gameboy.cpu.regs.h, gameboy.cpu.regs.l);
-                        println!("HL: {:02x}{:02x}", gameboy.cpu.regs.h, gameboy.cpu.regs.l);
-                        println!("SP: {:04x}", gameboy.cpu.regs.sp);
-                        println!("PC: {:04x}", gameboy.cpu.regs.pc);
+                        gameboy.cpu.dump_regs();
 
                     }
                     _ => println!("Not a valid command"),

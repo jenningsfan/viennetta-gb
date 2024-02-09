@@ -1,7 +1,6 @@
 mod registers;
 
 use crate::hardware::memory::Memory;
-use bitflags::Flag;
 use registers::*;
 
 macro_rules! unsupported_opcode {
@@ -23,7 +22,7 @@ impl CPU {
         
         self.regs.pc += 1;
         
-        //println!("{:01X}", block);
+        //self.dump_regs();
         let cycles = match block {
             0x0 => self.execute_block_0_opcode(opcode, memory),
             0x1 => self.execute_block_1_opcode(opcode, memory),
@@ -36,6 +35,23 @@ impl CPU {
         //dbg!(&self.regs);
         //dbg!(self.regs.a);
         cycles
+    }
+
+    pub fn dump_regs(&self) {
+        let mut flags_str = String::new();
+        for &flag in &[Flags::Carry, Flags::HalfCarry, Flags::Negative, Flags::Zero] {
+            flags_str.push(match self.regs.flags.contains(flag) {
+                true => flag.to_char(),
+                false => '-',
+            });
+        }
+
+        println!("AF: {:02x}{:02x} ({flags_str})", self.regs.a, self.regs.flags);
+        println!("BC: {:02x}{:02x}", self.regs.b, self.regs.c);
+        println!("DE: {:02x}{:02x}", self.regs.d, self.regs.e);
+        println!("HL: {:02x}{:02x}", self.regs.h, self.regs.l);
+        println!("SP: {:04x}", self.regs.sp);
+        println!("PC: {:04x} ", self.regs.pc);
     }
 
     fn execute_block_0_opcode(&mut self, opcode: u8, memory: &mut Memory) -> u8 {
@@ -113,7 +129,7 @@ impl CPU {
             match opcode & 0x7 {
                 0x4 => {
                     // inc r8
-                    self.regs.add_r8(r8, 1, memory);
+                    self.regs.add_r8(r8, 1, memory, false);
                     if r8 == HL_POINT {
                         return 3;
                     }
@@ -123,7 +139,7 @@ impl CPU {
                 },
                 0x5 => {
                     // dec r8
-                    self.regs.sub_r8(r8, 1, memory);
+                    self.regs.sub_r8(r8, 1, memory, false);
                     if r8 == HL_POINT {
                         return 3;
                     }
@@ -476,10 +492,21 @@ impl CPU {
 
         if opcode == 0xCD {
             // call imm16
-            self.push_to_stack(self.regs.pc, memory);
+            self.push_to_stack(self.regs.pc + 2, memory);
             self.regs.pc = imm16;
             return 6;
-        } 
+        }
+
+        if opcode & 0x07 == 0x04 {
+            if condition {
+                self.push_to_stack(self.regs.pc + 2, memory);
+                self.regs.pc = imm16;
+                return 24;
+            }
+            else {
+                return 12;
+            }
+        }
 
         if opcode & 0x07 == 0x07 {
             // rst tgst3
@@ -489,7 +516,7 @@ impl CPU {
             return 4;
         }
 
-        let r16 = (opcode & 0x30) >> 3;
+        let r16 = (opcode & 0x30) >> 4;
         match opcode & 0x0F {
             0x01 => {
                 // pop r16stk
@@ -534,7 +561,7 @@ impl CPU {
                 self.regs.pc += 1;
                 return 3;
             },
-            0xFC => {
+            0xFA => {
                 // ld a, [imm16]
                 self.regs.a = memory[imm16];
                 self.regs.pc += 2;

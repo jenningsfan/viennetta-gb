@@ -2,12 +2,24 @@ use bitflags::bitflags;
 use crate::hardware::memory::Memory;
 
 bitflags! {
-    #[derive(Debug, Default, Clone, Copy, PartialEq)]
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
     pub struct Flags: u8 {
         const Zero = 1 << 7;
         const Negative = 1 << 6;
         const HalfCarry = 1 << 5;
         const Carry = 1 << 4;
+    }
+}
+
+impl Flags {
+    pub fn to_char(self) -> char {
+        match self {
+            Flags::Carry => 'C',
+            Flags::HalfCarry => 'H',
+            Flags::Negative => 'N',
+            Flags::Zero => 'Z',
+            _ => panic!("too big"),
+        }
     }
 }
 
@@ -32,7 +44,7 @@ impl Default for Registers {
         Self {
             flags: Flags::default(),
             
-            a: 0,
+            a: 1,
             b: 0,
             c: 0,
             d: 0,
@@ -58,7 +70,7 @@ impl Registers {
             6 => memory[self.get_hl()],
             7 => self.a,
 
-            _ => panic!("literaly impossible. it should only be 3 bits wide"),
+            _ => panic!("literaly impossible. it should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -73,7 +85,7 @@ impl Registers {
             6 => memory[self.get_hl()] = value,
             7 => self.a = value,
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -97,7 +109,7 @@ impl Registers {
             2 => self.get_hl(),
             3 => self.sp,
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -117,7 +129,7 @@ impl Registers {
             },
             3 => self.sp = value,
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -132,7 +144,7 @@ impl Registers {
             2 => self.get_hl(),
             3 => (self.a as u16) << 8 | self.flags.bits() as u16,
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -155,7 +167,7 @@ impl Registers {
                 self.flags = Flags::from_bits((value & 0xFF) as u8).expect("Failed to convert bits to Flags");
             },
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -168,7 +180,7 @@ impl Registers {
             2 => {self.set_hl(hl + 1); hl},
             3 => {self.set_hl(hl - 1); hl},
 
-            _ => panic!("opcode segment should only be 3 bits wide"),
+            _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
@@ -190,7 +202,7 @@ impl Registers {
         self.a = result.0;
     }
 
-    pub fn add_r8(&mut self, reg: u8, value: u8, memory: &mut Memory) {
+    pub fn add_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool) {
         let result = self.get_r8(reg, memory).overflowing_add(value);
         
         self.flags = Flags::empty();
@@ -198,7 +210,7 @@ impl Registers {
         if result.0 == 0 {
             self.flags |= Flags::Zero;
         }
-        if result.1 {
+        if result.1 && set_carry {
             self.flags |= Flags::Carry;
         }
         if (((value & 0xF) + (self.a & 0xF)) & 0x10) == 0x10 {
@@ -208,7 +220,7 @@ impl Registers {
         self.set_r8(reg, result.0, memory);
     }
 
-    pub fn sub_r8(&mut self, reg: u8, value: u8, memory: &mut Memory)  {
+    pub fn sub_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool)  {
         let result = self.get_r8(reg, memory).overflowing_sub(value);
 
         self.flags = Flags::Negative;
@@ -219,7 +231,7 @@ impl Registers {
         if result.1 {
             self.flags |= Flags::Carry;
         }
-        if (((self.a & 0xF) - (value & 0xF)) & 0x10) == 0x10 {
+        if (value & 0xF) > (self.get_r8(reg, memory) & 0xF) {
             self.flags |= Flags::HalfCarry;
         }
 
@@ -236,7 +248,7 @@ impl Registers {
         if result.1 {
             self.flags |= Flags::Carry;
         }
-        if (((self.a & 0xF) - (value & 0xF)) & 0x10) == 0x10 {
+        if (value & 0xF) > (self.a & 0xF) {
             self.flags |= Flags::HalfCarry;
         }
 
@@ -250,7 +262,7 @@ impl Registers {
             0x2 => !self.flags.contains(Flags::Carry),
             0x3 => self.flags.contains(Flags::Carry),
 
-            _ => panic!("should only be 2 bits wide"),
+            _ => panic!("should only be 2 bits wide at {:04x}", self.pc),
         }
     }
 }
