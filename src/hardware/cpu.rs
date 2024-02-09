@@ -504,6 +504,7 @@ impl CPU {
                 return 24;
             }
             else {
+                self.regs.pc += 2;
                 return 12;
             }
         }

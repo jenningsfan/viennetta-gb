@@ -99,7 +99,7 @@ impl IndexMut<usize> for Memory {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         //println!("{:04X}", index);
         if index == 0xFF02 {
-            println!("YIPPPE");
+            //println!("YIPPPE");
         }
         if index < 0x100 && self[BOOT_ROM_REGISTER as usize] == 0 {
             return &mut self.boot_rom[index];

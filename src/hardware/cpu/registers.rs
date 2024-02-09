@@ -90,7 +90,7 @@ impl Registers {
     }
 
     pub fn apply_r8<F: Fn(u8) -> u8>(&mut self, reg: u8, memory: &mut Memory, func: F) {
-        self.set_r8(reg, dbg!(func(self.get_r8(reg, memory))), memory);
+        self.set_r8(reg, func(self.get_r8(reg, memory)), memory);
     }
 
     pub fn get_hl(&self) -> u16 {

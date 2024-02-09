@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::io::Write;
 
 pub mod io;
 pub mod cpu;
@@ -18,6 +19,7 @@ impl GameBoy {
         let cycles = self.cpu.execute_opcode(&mut self.memory);
         if self.memory[0xFF02] == 0x81_u8 {
             println!("{}", self.memory[0xFF01] as char);
+            std::io::stdout().flush().unwrap();
             self.memory[0xFF02] = 0_u8;
         }
         self.io.run_cycles(1 * 4, &mut self.memory)
