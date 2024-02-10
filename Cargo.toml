@@ -22,5 +22,5 @@ debug = true
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [[bench]]
-name = "get_tile"
+name = "ppu"
 harness = false

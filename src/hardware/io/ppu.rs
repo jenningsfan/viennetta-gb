@@ -53,14 +53,14 @@ impl PPU {
         }
     }
 
-    fn draw_tile(&mut self, tile: &Tile, x: usize, y: usize) {
+    pub fn draw_tile(&mut self, tile: &Tile, x: usize, y: usize) {
         for i in 0..8 {
             let start = (i + y) * WIDTH + x;
             self.lcd[start..start + 8].copy_from_slice(&tile[i * 8.. i * 8 + 8]);
         }
     }
 
-    fn get_tile(&self, offset: u8, memory: &Memory) -> Tile {
+    pub fn get_tile(&self, offset: u8, memory: &Memory) -> Tile {
         // TODO: this isn't very nice. redo to use a range
         let mut tiles_bytes = [0; 16];
 
@@ -78,13 +78,13 @@ impl PPU {
         }
         
         let mut tiles = [Colour::Black; 64];
-        for (i, tile) in tiles_bytes.chunks(2).enumerate() {
-            let high = tile[0];
-            let low = tile[1];
+        for i in (0..tiles_bytes.len()).step_by(2) {
+            let high = tiles_bytes[i];
+            let low = tiles_bytes[i + 1];
             
             for j in 0..8 {
                 let tile = (((high >> j) & 1) << 1) | (low >> j) & 1;
-                tiles[i * 8 + (7 - j)] = Colour::from(tile);
+                tiles[(i / 2) * 8 + (7 - j)] = Colour::from(tile);
             }
         }
 
