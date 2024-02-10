@@ -14,3 +14,6 @@ log = "0.4.20"
 [dependencies.rust-libretro]
 version = "0.3.1"
 features = [ "unstable-env-commands" ]
+
+[profile.release]
+debug = true

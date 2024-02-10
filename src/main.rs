@@ -42,6 +42,9 @@ fn main() {
                         gameboy.cpu.dump_regs();
 
                     }
+                    "q" => {
+                        std::process::exit(0);
+                    }
                     _ => println!("Not a valid command"),
                 }
             }

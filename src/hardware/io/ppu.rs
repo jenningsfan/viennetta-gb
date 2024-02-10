@@ -45,25 +45,6 @@ impl PPU {
     }
 
     pub fn run_cycle(&mut self, memory: &mut Memory) {
-        for i in 0..1 {
-            memory[0x8000 + 16_usize * i] = 0x3C;
-            memory[0x8000 + 16_usize * i + 1_usize] = 0x7E;
-            memory[0x8000 + 16_usize * i + 2_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 3_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 4_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 5_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 6_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 7_usize] = 0x42;
-            memory[0x8000 + 16_usize * i + 8_usize] = 0x7E;
-            memory[0x8000 + 16_usize * i + 9_usize] = 0x5E;
-            memory[0x8000 + 16_usize * i + 10_usize] = 0x7E;
-            memory[0x8000 + 16_usize * i + 11_usize] = 0x0A;
-            memory[0x8000 + 16_usize * i + 12_usize] = 0x7C;
-            memory[0x8000 + 16_usize * i + 13_usize] = 0x56;
-            memory[0x8000 + 16_usize * i + 14_usize] = 0x38;
-            memory[0x8000 + 16_usize * i + 15_usize] = 0x7C;
-        }
-
         for i in 0..256 {
             let tile = self.get_tile(i as u8, memory);
             let x = (i * 8) % WIDTH;

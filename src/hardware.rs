@@ -6,7 +6,7 @@ pub mod cpu;
 mod memory;
 mod boot_rom;
 
-const CLOCKS_PER_FRAME: u16 = 17556;
+const CLOCKS_PER_FRAME: u16 = 1;
 
 #[derive(Default, Debug)]
 pub struct GameBoy {
