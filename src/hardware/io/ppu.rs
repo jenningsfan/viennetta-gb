@@ -44,7 +44,7 @@ impl PPU {
         self.lcd
     }
 
-    pub fn run_cycle(&mut self, memory: &mut Memory) {
+    pub fn run_cycle(&mut self, memory: &Memory) {
         for i in 0..256 {
             let tile = self.get_tile(i as u8, memory);
             let x = (i * 8) % WIDTH;

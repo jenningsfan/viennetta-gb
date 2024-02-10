@@ -3,7 +3,7 @@ use std::io::Write;
 
 pub mod io;
 pub mod cpu;
-mod memory;
+pub mod memory;
 mod boot_rom;
 
 const CLOCKS_PER_FRAME: u16 = 1;
