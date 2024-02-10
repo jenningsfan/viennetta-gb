@@ -13,10 +13,9 @@ pub struct IO {
 }
 
 impl IO {
-    pub fn run_cycles(&mut self, cycles: u8, memory: &mut Memory) -> LcdPixels {
+    pub fn run_cycles(&mut self, cycles: u8, memory: &mut Memory) {
         for _ in 0..cycles {
             self.ppu.run_cycle(memory);
         }
-        self.ppu.get_frame()
     }
 }

@@ -299,7 +299,10 @@ impl CPU {
 
     fn execute_block_2_opcode(&mut self, opcode: u8, memory: &mut Memory) -> u8 {
         // All 8-bit arithmetic
-        let operand = self.regs.get_r8(opcode & 0x3, memory);
+        let operand = self.regs.get_r8(opcode & 0x7, memory);
+
+        // println!("operand: {operand:02X}");
+        // println!("a: {:02X}", self.regs.a);
 
         match opcode & 0xF8 {
             0x80 => self.regs.add_acc(operand), // add a, r8
@@ -330,6 +333,10 @@ impl CPU {
             },
             0xB0 => {
                 // or a, r8
+                // println!("opcode: {opcode:02X}");
+                // println!("opcode operand: {:02X} & 0x3", opcode);
+                // println!("operand: {operand:02X}");
+                // println!("a: {:02X}", self.regs.a);
                 self.regs.a |= operand;
                 self.regs.flags -= Flags::Negative;
                 self.regs.flags -= Flags::HalfCarry;

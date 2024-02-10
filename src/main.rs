@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::{fs, env};
 use std::ops::Index;
 use std::io::stdin;
@@ -9,13 +10,10 @@ fn main() {
     let mut gameboy = GameBoy::default();
     gameboy.load_rom(&rom);
 
-    let mut breakpoint: Vec<u16> = vec![];
+    let mut breakpoint: HashSet<u16> = HashSet::new();
     let mut stepping = true;
 
     loop {
-        if gameboy.cpu.regs.pc == 0x4750 {
-            println!("YES YES YES YES YES");
-        }
         if breakpoint.contains(&gameboy.cpu.regs.pc) || stepping {
             stepping = false;
             println!("{:04X}", gameboy.cpu.regs.pc);
@@ -34,7 +32,7 @@ fn main() {
                         break;
                     }
                     "b" => {
-                        breakpoint.push(u16::from_str_radix(command[1], 16).unwrap());
+                        breakpoint.insert(u16::from_str_radix(command[1], 16).unwrap());
                     }
                     "rb" => {
                         let offset = u16::from_str_radix(command[1], 16).unwrap();

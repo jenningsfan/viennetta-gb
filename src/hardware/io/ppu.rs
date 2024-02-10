@@ -6,6 +6,7 @@ pub type LcdPixels = [Colour; WIDTH * HEIGHT];
 type Tile = [Colour; 64];
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum Colour {
     White = 0,
     LightGrey = 1,
@@ -33,7 +34,7 @@ pub struct PPU {
 impl Default for PPU {
     fn default() -> Self {
         Self {
-            lcd: [Colour::White; WIDTH * HEIGHT]
+            lcd: [Colour::Black; WIDTH * HEIGHT]
         }
     }
 }
@@ -44,7 +45,7 @@ impl PPU {
     }
 
     pub fn run_cycle(&mut self, memory: &mut Memory) {
-        for i in 0..0 {
+        for i in 0..1 {
             memory[0x8000 + 16_usize * i] = 0x3C;
             memory[0x8000 + 16_usize * i + 1_usize] = 0x7E;
             memory[0x8000 + 16_usize * i + 2_usize] = 0x42;
@@ -73,29 +74,27 @@ impl PPU {
 
     fn draw_tile(&mut self, tile: &Tile, x: usize, y: usize) {
         for i in 0..8 {
-            for j in 0..8 {
-                self.lcd[(i + y) * WIDTH + j + x] = tile[i * 8 + j];
-            }
+            let start = (i + y) * WIDTH + x;
+            self.lcd[start..start + 8].copy_from_slice(&tile[i * 8.. i * 8 + 8]);
         }
     }
 
     fn get_tile(&self, offset: u8, memory: &Memory) -> Tile {
         // TODO: this isn't very nice. redo to use a range
-        let mut tiles_bytes = vec![];
+        let mut tiles_bytes = [0; 16];
 
         if memory[0xFF40] & 0x40_u8 == 0_u8 {
             let offset = (offset as i8 as isize) * 16;
             for i in 0..16 {
-                tiles_bytes.push(memory[(0x9000 + offset + i) as usize]);
+                tiles_bytes[i] = memory[(0x9000 + offset + i as isize) as usize];
             }
         }
         else {
             for i in 0..16 {
                 let offset = offset as usize * 16;
-                tiles_bytes.push(memory[0x8000 + offset + i]);
+                tiles_bytes[i] = memory[0x8000 + offset + i];
             }
         }
-        
         
         let mut tiles = [Colour::Black; 64];
         for (i, tile) in tiles_bytes.chunks(2).enumerate() {

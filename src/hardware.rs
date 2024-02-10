@@ -6,6 +6,8 @@ pub mod cpu;
 mod memory;
 mod boot_rom;
 
+const CLOCKS_PER_FRAME: u16 = 17556;
+
 #[derive(Default, Debug)]
 pub struct GameBoy {
     pub breakpoint: bool, 
@@ -16,13 +18,20 @@ pub struct GameBoy {
 
 impl GameBoy {
     pub fn run_frame(&mut self) -> io::LcdPixels {
-        let cycles = self.cpu.execute_opcode(&mut self.memory);
-        if self.memory[0xFF02] == 0x81_u8 {
-            println!("{}", self.memory[0xFF01] as char);
-            std::io::stdout().flush().unwrap();
-            self.memory[0xFF02] = 0_u8;
+        let mut clocks = 0;
+
+        while clocks < CLOCKS_PER_FRAME {
+            let cycles = self.cpu.execute_opcode(&mut self.memory);
+            if self.memory[0xFF02] == 0x81_u8 {
+                print!("{}", self.memory[0xFF01] as char);
+                std::io::stdout().flush().unwrap();
+                self.memory[0xFF02] = 0x01_u8;
+            }
+            self.io.run_cycles(cycles * 4, &mut self.memory);
+            clocks += cycles as u16 * 4;
         }
-        self.io.run_cycles(1 * 4, &mut self.memory)
+
+        self.io.ppu.get_frame()
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) {
