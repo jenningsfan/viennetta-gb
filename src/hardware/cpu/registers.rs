@@ -164,7 +164,8 @@ impl Registers {
             },
             3 => {
                 self.a = (value >> 8) as u8;
-                self.flags = Flags::from_bits((value & 0xFF) as u8).expect("Failed to convert bits to Flags");
+                self.flags = Flags::from_bits((value & 0xF0) as u8)
+                    .ok_or_else(|| format!("Failed to convert {value:04X} to Flags {:04x}", self.pc)).unwrap();
             },
 
             _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),

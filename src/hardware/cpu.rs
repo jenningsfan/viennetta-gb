@@ -216,7 +216,32 @@ impl CPU {
             },
             0x27 => {
                 // daa
-                todo!("DAA instruction");
+                let mut offset = 0;
+                let mut should_carry = false;
+                let negative = self.regs.flags.contains(Flags::Negative);
+                if (!negative && self.regs.a & 0xF > 0x09) || self.regs.flags.contains(Flags::HalfCarry) {
+                    offset |= 0x06;
+                }
+                if (!negative && self.regs.a > 0x99) || self.regs.flags.contains(Flags::Carry) {
+                    offset |= 0x60;
+                    should_carry = true;
+                }
+
+                if negative {
+                    self.regs.a = self.regs.a.wrapping_sub(offset);
+                }
+                else {
+                    self.regs.a = self.regs.a.wrapping_add(offset);
+                }
+                
+                self.regs.flags = self.regs.flags & (Flags::Negative );//| Flags::Carry);
+                if self.regs.a == 0 {
+                    self.regs.flags |= Flags::Zero;
+                }
+                if !negative && should_carry {
+                    self.regs.flags |= Flags::Carry;
+                }
+
                 return 1;
             },
             0x2F => {
@@ -320,27 +345,44 @@ impl CPU {
             0xA0 => {
                 // and a, r8
                 self.regs.a &= operand;
+
                 self.regs.flags -= Flags::Negative;
                 self.regs.flags |= Flags::HalfCarry;
                 self.regs.flags -= Flags::Carry;
+                if self.regs.a == 0 && opcode != 0xB8 {
+                    self.regs.flags |= Flags::Zero;
+                }
+                else {
+                    self.regs.flags -= Flags::Zero;
+                }
             },
             0xA8 => {
                 // xor a, r8
                 self.regs.a ^= operand;
+
                 self.regs.flags -= Flags::Negative;
                 self.regs.flags -= Flags::HalfCarry;
                 self.regs.flags -= Flags::Carry;
+                if self.regs.a == 0 && opcode != 0xB8 {
+                    self.regs.flags |= Flags::Zero;
+                }
+                else {
+                    self.regs.flags -= Flags::Zero;
+                }
             },
             0xB0 => {
                 // or a, r8
-                // println!("opcode: {opcode:02X}");
-                // println!("opcode operand: {:02X} & 0x3", opcode);
-                // println!("operand: {operand:02X}");
-                // println!("a: {:02X}", self.regs.a);
                 self.regs.a |= operand;
+
                 self.regs.flags -= Flags::Negative;
                 self.regs.flags -= Flags::HalfCarry;
                 self.regs.flags -= Flags::Carry;
+                if self.regs.a == 0 && opcode != 0xB8 {
+                    self.regs.flags |= Flags::Zero;
+                }
+                else {
+                    self.regs.flags -= Flags::Zero;
+                }
             }
             0xB8 => {
                 // cp a, r8
@@ -350,13 +392,6 @@ impl CPU {
             },
 
             _ => unsupported_opcode!(opcode, self.regs.pc),
-        }
-        
-        if self.regs.a == 0 {
-            self.regs.flags |= Flags::Zero;
-        }
-        else {
-            self.regs.flags -= Flags::Zero;
         }
 
         // check for [hl]
@@ -528,12 +563,20 @@ impl CPU {
         match opcode & 0x0F {
             0x01 => {
                 // pop r16stk
+                //println!("{:02X} at {:04X}", opcode, self.regs.pc);
                 let value = self.pop_from_stack(memory);
                 self.regs.set_r16_stk(r16, value);
+                if opcode == 0xF1 {
+                    //println!("pop af( {:02X}) at {:04X}", value, self.regs.pc);
+                }
                 return 3;
             },
             0x05 => {
                 // push r16stk
+                if opcode == 0xF5 {
+                    //println!("push af( {:02X}) at {:04X}", self.regs.get_r16_stk(r16), self.regs.pc);
+                }
+                
                 self.push_to_stack(self.regs.get_r16_stk(r16), memory);
                 return 4;
             },
@@ -634,7 +677,7 @@ impl CPU {
     }
 
     fn execute_cb_opcode(&mut self, opcode: u8, memory: &mut Memory) -> u8 {
-        let reg = opcode & 0x03;
+        let reg = opcode & 0x07;
         let bit = 1 << ((opcode & 0x38) >> 3);
         
         match opcode & 0xC0 {
@@ -673,13 +716,13 @@ impl CPU {
                     0x10 => {
                         // rl r8
                         let value = self.regs.get_r8(reg, memory);
-                        self.regs.flags = Flags::default();
-
+                        
                         let mut shifted = value << 1;
-
+                        
                         if self.regs.flags.contains(Flags::Carry) {
                             shifted |= 1;
                         }
+                        self.regs.flags = Flags::default();
                         if value & 0x80 == 1 {
                             self.regs.flags |= Flags::Carry
                         }
@@ -693,13 +736,13 @@ impl CPU {
                     0x18 => {
                         // rr r8
                         let value = self.regs.get_r8(reg, memory);
-                        self.regs.flags = Flags::default();
-
+                        
                         let mut shifted = value >> 1;
-
+                        
                         if self.regs.flags.contains(Flags::Carry) {
-                            shifted |= 0x80;
+                            shifted |= 0xF0;
                         }
+                        self.regs.flags = Flags::default();
                         if value & 0x01 == 1 {
                             self.regs.flags |= Flags::Carry
                         }
@@ -735,12 +778,16 @@ impl CPU {
                         return 2;
                     },
                     0x30 => {
-                        self.regs.apply_r8(reg, memory, |r| (r & 0x0F << 4) | r >> 4);
+                        // swap r8
+                        // println!("before {:02X}", self.regs.get_r8(reg, memory));
+                        self.regs.apply_r8(reg, memory, |r| ((r & 0x0F) << 4) | (r >> 4));
+                        // println!("swappping at {:04X}", self.regs.pc);
+                        // println!("after {:02X}", self.regs.get_r8(reg, memory));
                         return 13;
                     }
                     0x38 => {
                         // srl r8
-                        if self.regs.get_r8(reg, memory) & 0x40 == 1 {
+                        if self.regs.get_r8(reg, memory) & 0x40 == 0x40 {
                             self.regs.flags |= Flags::Carry;
                         }
                         self.regs.apply_r8(reg, memory, |r| r >> 1);

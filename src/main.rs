@@ -45,6 +45,13 @@ fn main() {
                     "q" => {
                         std::process::exit(0);
                     }
+                    "ch" => {
+                        // TODO: this isn't very nice is it now
+                        for i in 0..4 {
+                            print!("{:02X}", gameboy.memory[0xFF80 + i]);
+                        }
+                        println!();
+                    }
                     _ => println!("Not a valid command"),
                 }
             }

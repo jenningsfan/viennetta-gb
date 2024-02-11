@@ -20,7 +20,7 @@ fn set_up_ppu() -> (Memory, PPU) {
     memory[0x8013] = 0x56_u8;
     memory[0x8014] = 0x38_u8;
     memory[0x8015] = 0x7C_u8;
-    let mut ppu = PPU::default();
+    let ppu = PPU::default();
 
     (memory, ppu)
 }
@@ -37,7 +37,7 @@ fn draw_tile(c: &mut Criterion) {
 }
 
 fn get_tile(c: &mut Criterion) {
-    let (memory, mut ppu) = set_up_ppu();
+    let (memory, ppu) = set_up_ppu();
     c.bench_function("ppu.get_tile", |b| b.iter(|| black_box(ppu.get_tile(0, &memory))));
 }
 

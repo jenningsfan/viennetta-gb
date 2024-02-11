@@ -6,7 +6,8 @@ pub mod cpu;
 pub mod memory;
 mod boot_rom;
 
-const CLOCKS_PER_FRAME: u16 = 17556;
+const CLOCKS_PER_FRAME: u16 = 1;
+//const CLOCKS_PER_FRAME: u16 = 17556;
 
 #[derive(Default, Debug)]
 pub struct GameBoy {
@@ -27,8 +28,10 @@ impl GameBoy {
                 std::io::stdout().flush().unwrap();
                 self.memory[0xFF02] = 0x01_u8;
             }
-            self.io.run_cycles(cycles * 4, &mut self.memory);
-            clocks += cycles as u16 * 4;
+            // commented out becauseit will be completly rewritten
+            // TODO: don't forget this
+            //self.io.run_cycles(cycles * 4, &mut self.memory);
+            clocks += cycles as u16;
         }
 
         self.io.ppu.get_frame()
