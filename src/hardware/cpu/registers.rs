@@ -206,7 +206,12 @@ impl Registers {
     pub fn add_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool) {
         let result = self.get_r8(reg, memory).overflowing_add(value);
         
-        self.flags = Flags::empty();
+        if set_carry {
+            self.flags = Flags::empty();
+        }
+        else {
+            self.flags &= Flags::Carry;
+        }
 
         if result.0 == 0 {
             self.flags |= Flags::Zero;
@@ -214,7 +219,7 @@ impl Registers {
         if result.1 && set_carry {
             self.flags |= Flags::Carry;
         }
-        if (((value & 0xF) + (self.a & 0xF)) & 0x10) == 0x10 {
+        if (((value & 0xF) + (self.get_r8(reg, memory) & 0xF)) & 0x10) == 0x10 {
             self.flags |= Flags::HalfCarry;
         }
 
@@ -224,12 +229,18 @@ impl Registers {
     pub fn sub_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool)  {
         let result = self.get_r8(reg, memory).overflowing_sub(value);
 
-        self.flags = Flags::Negative;
+        if set_carry {
+            self.flags = Flags::Negative;
+        }
+        else {
+            self.flags &= Flags::Carry;
+            self.flags |= Flags::Negative;
+        }
 
         if result.0 == 0 {
             self.flags |= Flags::Zero;
         }
-        if result.1 {
+        if result.1 && set_carry {
             self.flags |= Flags::Carry;
         }
         if (value & 0xF) > (self.get_r8(reg, memory) & 0xF) {
