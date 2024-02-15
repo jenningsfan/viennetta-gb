@@ -56,7 +56,7 @@ fn main() {
                 }
             }
         }
-        
+        //println!("{:04X}", gameboy.cpu.regs.pc);
         gameboy.run_frame();
     }
 }

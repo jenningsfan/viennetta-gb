@@ -53,7 +53,7 @@ impl Default for Registers {
             l: 0,
             
             sp: 0xFFFE,
-            pc: 0x100,
+            pc: 0x00FE,
         }
     }
 }

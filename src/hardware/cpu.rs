@@ -133,6 +133,7 @@ impl CPU {
                     self.regs.add_r8(r8, 1, memory, false);
                     //dbg!(self.regs.get_r8(r8, memory));
                     //dbg!(self.regs.flags);
+                    //dbg!(self.regs.pc);
                     if r8 == HL_POINT {
                         return 3;
                     }
@@ -219,6 +220,7 @@ impl CPU {
             },
             0x27 => {
                 // daa
+                dbg!(self.regs.a);
                 let mut offset = 0;
                 let mut should_carry = false;
                 let negative = self.regs.flags.contains(Flags::Negative);
@@ -237,14 +239,14 @@ impl CPU {
                     self.regs.a = self.regs.a.wrapping_add(offset);
                 }
                 
-                self.regs.flags = self.regs.flags & (Flags::Negative );//| Flags::Carry);
+                self.regs.flags = self.regs.flags & (Flags::Negative);//| Flags::Carry);
                 if self.regs.a == 0 {
                     self.regs.flags |= Flags::Zero;
                 }
                 if !negative && should_carry {
                     self.regs.flags |= Flags::Carry;
                 }
-
+                dbg!(self.regs.a);
                 return 1;
             },
             0x2F => {
@@ -518,7 +520,10 @@ impl CPU {
 
         if opcode == 0xC9 {
             // ret
+            //dbg!("ret");
+            //println!("{:04X}", self.regs.pc);
             self.regs.pc = self.pop_from_stack(memory);
+            //println!("{:04X}", self.regs.pc);
             return 4;
         }
 
@@ -585,9 +590,16 @@ impl CPU {
 
         if opcode & 0x07 == 0x07 {
             // rst tgst3
+            // dbg!("here it is");
+            // println!("{:02X}", opcode);
             let target = (opcode & 0x38) as u16;
+            //println!("{:02X}", target);
+            //println!("{:02X}", self.regs.pc);
             self.push_to_stack(self.regs.pc, memory);
             self.regs.pc = target;
+            //println!("{:02X}", self.regs.pc);
+
+            //panic!();
             return 4;
         }
 
