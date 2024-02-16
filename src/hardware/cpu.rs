@@ -220,7 +220,6 @@ impl CPU {
             },
             0x27 => {
                 // daa
-                dbg!(self.regs.a);
                 let mut offset = 0;
                 let mut should_carry = false;
                 let negative = self.regs.flags.contains(Flags::Negative);
@@ -243,10 +242,10 @@ impl CPU {
                 if self.regs.a == 0 {
                     self.regs.flags |= Flags::Zero;
                 }
-                if !negative && should_carry {
+                if should_carry {
                     self.regs.flags |= Flags::Carry;
                 }
-                dbg!(self.regs.a);
+                
                 return 1;
             },
             0x2F => {
