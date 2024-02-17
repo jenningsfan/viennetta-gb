@@ -38,15 +38,9 @@ impl CPU {
     }
 
     pub fn dump_regs(&self) {
-        let mut flags_str = String::new();
-        for &flag in &[Flags::Carry, Flags::HalfCarry, Flags::Negative, Flags::Zero] {
-            flags_str.push(match self.regs.flags.contains(flag) {
-                true => flag.to_char(),
-                false => '-',
-            });
-        }
+        
 
-        println!("AF: {:02x}{:02x} ({flags_str})", self.regs.a, self.regs.flags);
+        println!("AF: {:02x}{:02x} ({})", self.regs.a, self.regs.flags, self.regs.flags.to_string());
         println!("BC: {:02x}{:02x}", self.regs.b, self.regs.c);
         println!("DE: {:02x}{:02x}", self.regs.d, self.regs.e);
         println!("HL: {:02x}{:02x}", self.regs.h, self.regs.l);
@@ -663,33 +657,14 @@ impl CPU {
             },
             0xE8 => {
                 // add sp, imm8
-                let offset = (imm8 as i8) as i16;
-                let result = (self.regs.sp as i16).overflowing_add(offset);
-                
-                if result.1 {
-                    self.regs.flags |= Flags::Carry;
-                }
-                if (((self.regs.sp as i16 & 0xF) + (offset & 0xF)) as u16 & 0x10) == 0x10 {
-                    self.regs.flags |= Flags::HalfCarry;
-                }
-
-                self.regs.sp = result.0 as u16;
+                self.regs.sp = self.regs.add_sp_signed(imm8);
                 self.regs.pc += 1;
                 return 4;
             },
             0xF8 => {
                 // ld hl, sp + imm8
-                let offset = (imm8 as i8) as i16;
-                let result = (self.regs.sp as i16).overflowing_add(offset);
-                
-                if result.1 {
-                    self.regs.flags |= Flags::Carry;
-                }
-                if (((self.regs.sp as i16 & 0xF) + (offset & 0xF)) as u16 & 0x10) == 0x10 {
-                    self.regs.flags |= Flags::HalfCarry;
-                }
-
-                self.regs.set_hl(result.0 as u16);
+                let result = self.regs.add_sp_signed(imm8);
+                self.regs.set_hl(result);
                 self.regs.pc += 1;
                 return 3;
             },

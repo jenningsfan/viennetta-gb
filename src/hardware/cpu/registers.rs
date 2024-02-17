@@ -21,6 +21,18 @@ impl Flags {
             _ => panic!("too big"),
         }
     }
+
+    pub fn to_string(self) -> String {
+        let mut flags_str = String::new();
+        for &flag in &[Flags::Carry, Flags::HalfCarry, Flags::Negative, Flags::Zero] {
+            flags_str.push(match self.contains(flag) {
+                true => flag.to_char(),
+                false => '-',
+            });
+        }
+
+        flags_str
+    }
 }
 
 #[derive(Debug)]
@@ -265,6 +277,33 @@ impl Registers {
         }
 
         self.a = result.0;
+    }
+
+    pub fn add_sp_signed(&mut self, value: u8) -> u16 {
+        self.flags = Flags::default();
+        if value > 127 {
+            let offset = !value + 1; // imm8 is actually a negative offset so get absolute value through 2s complement
+            let result = self.sp.wrapping_sub(offset as u16);
+            
+            if result & 0xFF < self.sp & 0xFF {
+                self.flags |= Flags::Carry;
+            }
+
+            if result & 0xF < self.sp & 0xF {
+                self.flags |= Flags::HalfCarry;
+            }
+
+            result
+        }
+        else {
+            if (((self.sp & 0xFF) + value as u16) & 0x100) == 0x100 {
+                self.flags |= Flags::Carry;
+            }
+            if (((self.sp & 0xF) + (value as u16 & 0xF)) & 0x10) == 0x10 {
+                self.flags |= Flags::HalfCarry;
+            }
+            self.sp.wrapping_add(value as u16)
+        }
     }
 
     pub fn condition(&self, condition: u8) -> bool {
