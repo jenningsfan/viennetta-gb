@@ -1,9 +1,6 @@
-use crate::hardware::memory::Memory;
-
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
 pub type LcdPixels = [Colour; WIDTH * HEIGHT];
-type Tile = [Colour; 64];
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -29,12 +26,16 @@ impl From<u8> for Colour {
 #[derive(Debug)]
 pub struct PPU {
     lcd: LcdPixels,
+    vram: [u8; 0x2000],
+    oam: [u8; 0x100],
 }
 
 impl Default for PPU {
     fn default() -> Self {
         Self {
-            lcd: [Colour::Black; WIDTH * HEIGHT]
+            lcd: [Colour::Black; WIDTH * HEIGHT],
+            vram: [0; 0x2000],
+            oam: [0; 0x100],
         }
     }
 }
@@ -44,50 +45,24 @@ impl PPU {
         self.lcd
     }
 
-    pub fn run_cycle(&mut self, memory: &Memory) {
-        for i in 0..256 {
-            let tile = self.get_tile(i as u8, memory);
-            let x = (i * 8) % WIDTH;
-            let y = (i / 20) * 8;
-            self.draw_tile(&tile, x, y);
-        }
+    pub fn read_vram(&mut self, address: u16) -> u8 {
+        self.vram[address as usize]
     }
 
-    pub fn draw_tile(&mut self, tile: &Tile, x: usize, y: usize) {
-        for i in 0..8 {
-            let start = (i + y) * WIDTH + x;
-            self.lcd[start..start + 8].copy_from_slice(&tile[i * 8.. i * 8 + 8]);
-        }
+    pub fn write_vram(&mut self, address: u16, value: u8) {
+        self.vram[address as usize] = value;
     }
 
-    pub fn get_tile(&self, offset: u8, memory: &Memory) -> Tile {
-        // TODO: this isn't very nice. redo to use a range
-        let mut tiles_bytes = [0; 16];
+    pub fn read_oam(&mut self, address: u16) -> u8 {
+        self.oam[address as usize]
+    }
 
-        if memory[0xFF40] & 0x40_u8 == 0_u8 {
-            let offset = (offset as i8 as isize) * 16;
-            for i in 0..16 {
-                tiles_bytes[i] = memory[(0x9000 + offset + i as isize) as usize];
-            }
-        }
-        else {
-            for i in 0..16 {
-                let offset = offset as usize * 16;
-                tiles_bytes[i] = memory[0x8000 + offset + i];
-            }
-        }
-        
-        let mut tiles = [Colour::Black; 64];
-        for i in (0..tiles_bytes.len()).step_by(2) {
-            let high = tiles_bytes[i];
-            let low = tiles_bytes[i + 1];
-            
-            for j in 0..8 {
-                let tile = (((high >> j) & 1) << 1) | (low >> j) & 1;
-                tiles[(i / 2) * 8 + (7 - j)] = Colour::from(tile);
-            }
-        }
+    pub fn write_oam(&mut self, address: u16, value: u8) {
+        self.oam[address as usize] = value;
+    }
 
-        tiles
+
+    pub fn run_cycle(&mut self) {
+
     }
 }

@@ -27,19 +27,8 @@ fn set_up_ppu() -> (Memory, PPU) {
 
 fn run_cycle(c: &mut Criterion) {
     let (memory, mut ppu) = set_up_ppu();
-    c.bench_function("ppu.run_cycle", |b| b.iter(|| ppu.run_cycle(&memory)));
+    c.bench_function("ppu.run_cycle", |b| b.iter(|| ppu.run_cycle()));
 }
 
-fn draw_tile(c: &mut Criterion) {
-    let (_, mut ppu) = set_up_ppu();
-    let tile = [Colour::DarkGrey; 64];
-    c.bench_function("ppu.draw_tile", |b| b.iter(|| ppu.draw_tile(&tile, 8, 8)));
-}
-
-fn get_tile(c: &mut Criterion) {
-    let (memory, ppu) = set_up_ppu();
-    c.bench_function("ppu.get_tile", |b| b.iter(|| black_box(ppu.get_tile(0, &memory))));
-}
-
-criterion_group!(benches, run_cycle, draw_tile, get_tile);
+criterion_group!(benches, run_cycle);
 criterion_main!(benches);

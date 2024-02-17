@@ -29,7 +29,7 @@ impl GameBoy {
             }
             // commented out becauseit will be completly rewritten
             // TODO: don't forget this
-            //self.io.run_cycles(cycles * 4, &mut self.memory);
+            self.io.run_cycles(cycles * 4);
             clocks += cycles as u16;
         }
 

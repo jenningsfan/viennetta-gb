@@ -20,6 +20,13 @@ impl Memory {
     pub fn load_rom(&mut self, rom: &[u8]) {
         self.game_rom[0x000..rom.len()].copy_from_slice(rom);
     }
+    
+    pub fn write_memory(&mut self, address: u16, data: u8) {
+        match address {
+            0x8000..=0xA000 => {},
+            _ => {},
+        }
+    }
 }
 
 impl Default for Memory {
