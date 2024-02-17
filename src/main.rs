@@ -1,17 +1,20 @@
 use std::collections::HashSet;
 use std::{fs, env};
-use std::ops::Index;
 use std::io::stdin;
 use viennetta_gb::hardware::GameBoy;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let rom = fs::read(&args[1]).unwrap();
+    let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
     let mut gameboy = GameBoy::default();
     gameboy.load_rom(&rom);
 
     let mut breakpoint: HashSet<u16> = HashSet::new();
-    let mut stepping = true;
+    let mut stepping = false;
+
+    if args.contains(&"--debugger".to_string()) {
+        stepping = true;
+    }
 
     loop {
         if breakpoint.contains(&gameboy.cpu.regs.pc) || stepping {
