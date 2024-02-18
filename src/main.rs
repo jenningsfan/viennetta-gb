@@ -11,9 +11,11 @@ fn main() {
 
     let mut breakpoint: HashSet<u16> = HashSet::new();
     let mut stepping = false;
+    let mut debugging = false;
 
     if args.contains(&"--debugger".to_string()) {
         stepping = true;
+        debugging = true;
     }
 
     loop {
@@ -59,6 +61,11 @@ fn main() {
             }
         }
         //println!("{:04X}", gameboy.cpu.regs.pc);
-        gameboy.run_frame();
+        if debugging {
+            gameboy.run_instruction();
+        }
+        else {
+            gameboy.run_frame();
+        }
     }
 }
