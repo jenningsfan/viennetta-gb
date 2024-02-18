@@ -4,7 +4,7 @@ use rust_libretro::{
     contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
 }; // TODO: see which imports are necessary
 
-use crate::hardware::{GameBoy, io::{WIDTH, HEIGHT}};
+use crate::hardware::{io::{Cartridge, HEIGHT, WIDTH}, GameBoy};
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 
 fn convert_data_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
@@ -69,8 +69,7 @@ impl Core for ViennettaCore {
             }
 
             let data = convert_data_to_vec(game.data, game.size);
-            self.gameboy = GameBoy::default();
-            self.gameboy.load_rom(&data);
+            self.gameboy = GameBoy::new(Cartridge::new(&data));
         }
         Ok(())
     }
@@ -83,5 +82,5 @@ impl Core for ViennettaCore {
 }
 
 retro_core!(ViennettaCore {
-    gameboy: GameBoy::default(),
+    gameboy: GameBoy::new(Cartridge::new(&[0; 0x8000])),
 });

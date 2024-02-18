@@ -12,7 +12,7 @@ macro_rules! unsupported_opcode {
 #[derive(Default, Debug)]
 pub struct CPU {
     pub regs: Registers,
-    interrupts_enabled: bool,
+    int_master_enable: bool,
 }
 
 impl CPU {
@@ -313,10 +313,10 @@ impl CPU {
 
         // check if [hl] is being used
         if source_reg == 6 || dest_reg == 6 {
-            return 2;
+            2
         }
         else {
-            return 1;
+            1
         }
     }
 
@@ -408,10 +408,10 @@ impl CPU {
 
         // check for [hl]
         if operand == 6 {
-            return 2;
+            2
         }
         else {
-            return 1;
+            1
         }
     }
 
@@ -513,17 +513,14 @@ impl CPU {
 
         if opcode == 0xC9 {
             // ret
-            //dbg!("ret");
-            //println!("{:04X}", self.regs.pc);
             self.regs.pc = self.pop_from_stack(memory);
-            //println!("{:04X}", self.regs.pc);
             return 4;
         }
 
         if opcode == 0xD9 {
             // reti
             self.regs.pc = self.pop_from_stack(memory);
-            self.interrupts_enabled = true;
+            self.int_master_enable = true;
             return 4;
         }
 
@@ -675,12 +672,12 @@ impl CPU {
             },
             0xF3 => {
                 // di
-                self.interrupts_enabled = false;
+                self.int_master_enable = false;
                 return 1;
             },
             0xFB => {
                 // ei
-                self.interrupts_enabled = true;
+                self.int_master_enable = true;
                 return 1;
             },
             0xCB => {

@@ -14,6 +14,14 @@ struct RAM {
 }
 
 impl RAM {
+    pub fn read_wram(&mut self, address: u16) -> u8 {
+        self.wram[address as usize]
+    }
+
+    pub fn read_hram(&mut self, address: u16) -> u8 {
+        self.hram[address as usize]
+    }
+
     pub fn write_wram(&mut self, address: u16, value: u8) {
         self.wram[address as usize] = value;
     }
@@ -33,16 +41,45 @@ impl Default for RAM {
 }
 
 #[derive(Debug)]
+pub struct Cartridge {
+    rom: [u8; 0x8000],
+}
+
+impl Cartridge {
+    pub fn new(game_rom: &[u8]) -> Self {
+        let mut rom = [0; 0x8000];
+        rom.copy_from_slice(game_rom);
+
+        Self {
+            rom,
+        }
+    }
+
+    fn read_rom(&self, address: u16) -> u8 {
+        self.rom[address as usize]
+    }
+
+    fn write_rom(&mut self, address: u16, value: u8) {
+        // Add mapper support here later
+        // It is left empty on purpose
+    }
+}
+
+#[derive(Debug)]
 pub struct IO {
-    pub ppu: ppu::PPU,
+    ppu: ppu::PPU,
+    cart: Cartridge,
+    int_enable: u8,
     ram: RAM,
 }
 
-impl Default for IO {
-    fn default() -> Self {
+impl IO {
+    pub fn new(cart: Cartridge) -> Self {
         Self {
             ppu: PPU::default(),
             ram: RAM::default(),
+            cart,
+            int_enable: 0,
         }
     }
 }
@@ -54,12 +91,32 @@ impl IO {
         }
     }
 
+    pub fn get_frame(&self) -> LcdPixels {
+        self.ppu.get_frame()
+    }
+
+    pub fn read_memory(&mut self, address: u16) -> u8 {
+        match address {
+            0x0000..=0x7FFF => self.cart.read_rom(address),
+            0x8000..=0x9FFF => self.ppu.read_vram(address - 0x8000),   // VRAM
+            0xC000..=0xDFFF => self.ram.read_wram(address - 0xC000),   // WRAM
+            0xE000..=0xFDFF => self.ram.read_wram(address - 0xE000),   // Echo RAM
+            0xFE00..=0xFE9F => self.ppu.read_oam(address - 0xFE00),    // OAM
+            0xFF80..=0xFFFE => self.ram.read_hram(address - 0xE000),   // HRAM
+            0xFFFF          => self.int_enable,                                // Interrupt Enable
+            _ => 0x00,  
+        }
+    }
+
     pub fn write_memory(&mut self, address: u16, value: u8) {
         match address {
+            0x0000..=0x7FFF => self.cart.write_rom(address, value),
             0x8000..=0x9FFF => self.ppu.write_vram(address - 0x8000, value),   // VRAM
             0xC000..=0xDFFF => self.ram.write_wram(address - 0xC000, value),   // WRAM
             0xE000..=0xFDFF => self.ram.write_wram(address - 0xE000, value),   // Echo RAM
+            0xFE00..=0xFE9F => self.ppu.write_oam(address - 0xFE00, value),    // OAM
             0xFF80..=0xFFFE => self.ram.write_hram(address - 0xE000, value),   // HRAM
+            0xFFFF          => self.int_enable = value,                                // Interrupt Enable
             _ => {},
         }
     }
