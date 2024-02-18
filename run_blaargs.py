@@ -23,3 +23,4 @@ for test in TESTS:
             print(f"{test} output:\n{output}")
         else:
             print(f"unexpected output: {test}")
+            print(f"{test} output:\n{output}")

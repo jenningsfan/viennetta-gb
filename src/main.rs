@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::{fs, env};
 use std::io::stdin;
+use viennetta_gb::hardware::io::Cartridge;
 use viennetta_gb::hardware::GameBoy;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
-    let mut gameboy = GameBoy::default();
-    gameboy.load_rom(&rom);
+    let mut gameboy = GameBoy::new(Cartridge::new(&rom));
 
     let mut breakpoint: HashSet<u16> = HashSet::new();
     let mut stepping = false;
@@ -28,7 +28,7 @@ fn main() {
                 match command[0] {
                     "c" => break,
                     "i" => {
-                        println!("{:02x}", gameboy.memory[gameboy.cpu.regs.pc])
+                        println!("{:02x}", gameboy.mmu.read_memory(gameboy.cpu.regs.pc))
                     }
                     "s" => {
                         stepping = true;
@@ -49,9 +49,8 @@ fn main() {
                         std::process::exit(0);
                     }
                     "ch" => {
-                        // TODO: this isn't very nice is it now
                         for i in 0..4 {
-                            print!("{:02X}", gameboy.memory[0xFF80 + i]);
+                            print!("{:02X}", gameboy.mmu.read_memory(0xFF80 + i));
                         }
                         println!();
                     }

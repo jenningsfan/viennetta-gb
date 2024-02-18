@@ -45,7 +45,7 @@ impl PPU {
         self.lcd
     }
 
-    pub fn read_vram(&mut self, address: u16) -> u8 {
+    pub fn read_vram(&self, address: u16) -> u8 {
         self.vram[address as usize]
     }
 
@@ -53,7 +53,7 @@ impl PPU {
         self.vram[address as usize] = value;
     }
 
-    pub fn read_oam(&mut self, address: u16) -> u8 {
+    pub fn read_oam(&self, address: u16) -> u8 {
         self.oam[address as usize]
     }
 

@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use crate::hardware::memory::Memory;
+use crate::hardware::io::MMU;
 
 bitflags! {
     #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +71,7 @@ impl Default for Registers {
 }
 
 impl Registers {
-    pub fn get_r8(&self, reg: u8, memory: &Memory) -> u8 {
+    pub fn get_r8(&self, reg: u8, mmu: &MMU) -> u8 {
         match reg {
             0 => self.b,
             1 => self.c,
@@ -79,14 +79,14 @@ impl Registers {
             3 => self.e,
             4 => self.h,
             5 => self.l,
-            6 => memory[self.get_hl()],
+            6 => mmu.read_memory(self.get_hl()),
             7 => self.a,
 
             _ => panic!("literaly impossible. it should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
-    pub fn set_r8(&mut self, reg: u8, value: u8, memory: &mut Memory) {
+    pub fn set_r8(&mut self, reg: u8, value: u8, mmu: &mut MMU) {
         match reg {
             0 => self.b = value,
             1 => self.c = value,
@@ -94,15 +94,15 @@ impl Registers {
             3 => self.e = value,
             4 => self.h = value,
             5 => self.l = value,
-            6 => memory[self.get_hl()] = value,
+            6 => mmu.write_memory(self.get_hl(), value),
             7 => self.a = value,
 
             _ => panic!("opcode segment should only be 3 bits wide at {:04x}", self.pc),
         }
     }
 
-    pub fn apply_r8<F: Fn(u8) -> u8>(&mut self, reg: u8, memory: &mut Memory, func: F) {
-        self.set_r8(reg, func(self.get_r8(reg, memory)), memory);
+    pub fn apply_r8<F: Fn(u8) -> u8>(&mut self, reg: u8, mmu: &mut MMU, func: F) {
+        self.set_r8(reg, func(self.get_r8(reg, mmu)), mmu);
     }
 
     pub fn get_hl(&self) -> u16 {
@@ -215,8 +215,8 @@ impl Registers {
         self.a = result.0;
     }
 
-    pub fn add_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool) {
-        let result = self.get_r8(reg, memory).overflowing_add(value);
+    pub fn add_r8(&mut self, reg: u8, value: u8, mmu: &mut MMU, set_carry: bool) {
+        let result = self.get_r8(reg, mmu).overflowing_add(value);
         
         if set_carry {
             self.flags = Flags::empty();
@@ -231,15 +231,15 @@ impl Registers {
         if result.1 && set_carry {
             self.flags |= Flags::Carry;
         }
-        if (((value & 0xF) + (self.get_r8(reg, memory) & 0xF)) & 0x10) == 0x10 {
+        if (((value & 0xF) + (self.get_r8(reg, mmu) & 0xF)) & 0x10) == 0x10 {
             self.flags |= Flags::HalfCarry;
         }
 
-        self.set_r8(reg, result.0, memory);
+        self.set_r8(reg, result.0, mmu);
     }
 
-    pub fn sub_r8(&mut self, reg: u8, value: u8, memory: &mut Memory, set_carry: bool)  {
-        let result = self.get_r8(reg, memory).overflowing_sub(value);
+    pub fn sub_r8(&mut self, reg: u8, value: u8, mmu: &mut MMU, set_carry: bool)  {
+        let result = self.get_r8(reg, mmu).overflowing_sub(value);
 
         if set_carry {
             self.flags = Flags::Negative;
@@ -255,11 +255,11 @@ impl Registers {
         if result.1 && set_carry {
             self.flags |= Flags::Carry;
         }
-        if (value & 0xF) > (self.get_r8(reg, memory) & 0xF) {
+        if (value & 0xF) > (self.get_r8(reg, mmu) & 0xF) {
             self.flags |= Flags::HalfCarry;
         }
 
-        self.set_r8(reg, result.0, memory);
+        self.set_r8(reg, result.0, mmu);
     }
 
     pub fn sub_acc(&mut self, value: u8) {
@@ -320,12 +320,14 @@ impl Registers {
 
 #[cfg(test)]
 mod tests {
+    use crate::hardware::io::Cartridge;
+
     use super::*;
 
     #[test]
     fn test_get_r8() {
-        let mut memory = Memory::default();
-        memory[0x0607 as u16] = 0xAB;
+        let mut mmu = MMU::new(Cartridge::new(&[0; 0x8000]));
+        mmu.write_memory(0xC607, 0xAB);
 
         let regs = Registers {
             flags: Flags::default(),
@@ -334,54 +336,54 @@ mod tests {
             c: 0x03,    // 1
             d: 0x04,    // 2
             e: 0x05,    // 3
-            h: 0x06,    // 4
+            h: 0xC6,    // 4
             l: 0x07,    // 5
-            // hl is 0x0607 which is 6
+            // hl is 0xC607 which is 6
             sp: 0x0000,
             pc: 0x0000,
         };
 
-        assert_eq!(regs.get_r8(0, &memory), regs.b);
-        assert_eq!(regs.get_r8(1, &memory), regs.c);
-        assert_eq!(regs.get_r8(2, &memory), regs.d);
-        assert_eq!(regs.get_r8(3, &memory), regs.e);
-        assert_eq!(regs.get_r8(4, &memory), regs.h);
-        assert_eq!(regs.get_r8(5, &memory), regs.l);
-        assert_eq!(regs.get_r8(6, &memory), memory[0x0607 as u16]);
-        assert_eq!(regs.get_r8(7, &memory), regs.a);
+        assert_eq!(regs.get_r8(0, &mmu), regs.b);
+        assert_eq!(regs.get_r8(1, &mmu), regs.c);
+        assert_eq!(regs.get_r8(2, &mmu), regs.d);
+        assert_eq!(regs.get_r8(3, &mmu), regs.e);
+        assert_eq!(regs.get_r8(4, &mmu), regs.h);
+        assert_eq!(regs.get_r8(5, &mmu), regs.l);
+        assert_eq!(regs.get_r8(6, &mmu), mmu.read_memory(0xC607 as u16));
+        assert_eq!(regs.get_r8(7, &mmu), regs.a);
     }
 
     #[test]
     fn test_set_r8() {
         let mut regs = Registers::default();
-        let mut memory = Memory::default();
+        let mut mmu = MMU::new(Cartridge::new(&[0; 0x8000]));
 
-        regs.set_r8(0, 0x02, &mut memory);
-        regs.set_r8(1, 0x03, &mut memory);
-        regs.set_r8(2, 0x04, &mut memory);
-        regs.set_r8(3, 0x05, &mut memory);
-        regs.set_r8(4, 0x06, &mut memory);
-        regs.set_r8(5, 0x07, &mut memory);
-        regs.set_r8(6, 0xAB, &mut memory);
-        regs.set_r8(7, 0x01, &mut memory);
+        regs.set_r8(0, 0x02, &mut mmu);
+        regs.set_r8(1, 0x03, &mut mmu);
+        regs.set_r8(2, 0x04, &mut mmu);
+        regs.set_r8(3, 0x05, &mut mmu);
+        regs.set_r8(4, 0xC6, &mut mmu);
+        regs.set_r8(5, 0x07, &mut mmu);
+        regs.set_r8(6, 0xAB, &mut mmu);
+        regs.set_r8(7, 0x01, &mut mmu);
 
         assert_eq!(regs.b, 0x02);
         assert_eq!(regs.c, 0x03);
         assert_eq!(regs.d, 0x04);
         assert_eq!(regs.e, 0x05);
-        assert_eq!(regs.h, 0x06);
+        assert_eq!(regs.h, 0xC6);
         assert_eq!(regs.l, 0x07);
-        assert_eq!(memory[0x0607 as u16], 0xAB);
+        assert_eq!(mmu.read_memory(0xC607), 0xAB);
         assert_eq!(regs.a, 0x01);
     }
 
     #[test]
     fn test_apply_r8() {
         let mut regs = Registers::default();
-        let mut memory = Memory::default();
+        let mut mmu = MMU::new(Cartridge::new(&[0; 0x8000]));
 
         regs.a = 0xAB;
-        regs.apply_r8(7, &mut memory, |reg| reg + 7);
+        regs.apply_r8(7, &mut mmu, |reg| reg + 7);
         assert_eq!(regs.a, 0xB2);
     }
 
