@@ -18,11 +18,12 @@ pub struct CPU {
 impl CPU {
     pub fn execute_opcode(&mut self, mmu: &mut MMU) -> u8 {
         let opcode = mmu.read_memory(self.regs.pc);
+        //println!("{:02X}", opcode);
         let block = opcode >> 6;
-        let r16 = (opcode >> 4) & 0x03;
-        let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | mmu.read_memory(self.regs.pc) as u16;
 
         self.regs.pc += 1;
+        let r16 = (opcode >> 4) & 0x03;
+        let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | mmu.read_memory(self.regs.pc) as u16;
         
         //self.dump_regs();
         let cycles = match block {
@@ -35,6 +36,7 @@ impl CPU {
                     match opcode & 0xF {
                         0x1 => {
                             // ld r16, imm16
+                            //println!("r16: {r16}\nimm16: {imm16}");
                             self.regs.set_r16(r16, imm16);
                             self.regs.pc += 2;
                             return 3;
@@ -388,6 +390,7 @@ impl CPU {
                 }
             },
             0x3 => {
+                //dbg!(opcode);
                 let imm8 = mmu.read_memory(self.regs.pc);
                 let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | (mmu.read_memory(self.regs.pc) as u16);
                 let condition = self.regs.condition((opcode & 0x18) >> 3);
@@ -521,6 +524,7 @@ impl CPU {
                 
                 if opcode == 0xC3 {
                     // jp imm16
+                    //dbg!(imm16);
                     self.regs.pc = imm16;
                     return 4;
                 }
