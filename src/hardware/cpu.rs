@@ -18,7 +18,8 @@ pub struct CPU {
 impl CPU {
     pub fn execute_opcode(&mut self, mmu: &mut MMU) -> u8 {
         let opcode = mmu.read_memory(self.regs.pc);
-        //println!("{:02X}", opcode);
+        //println!("{:04X}", self.regs.pc);
+        //println!("{:04X}: {:02X}{:02X}", self.regs.pc, opcode, mmu.read_memory(self.regs.pc + 1));
         let block = opcode >> 6;
 
         self.regs.pc += 1;
@@ -100,11 +101,7 @@ impl CPU {
                     match opcode & 0x7 {
                         0x4 => {
                             // inc r8
-                            //dbg!(self.regs.get_r8(r8, mmu));
                             self.regs.add_r8(r8, 1, mmu, false);
-                            //dbg!(self.regs.get_r8(r8, mmu));
-                            //dbg!(self.regs.flags);
-                            //dbg!(self.regs.pc);
                             if r8 == HL_POINT {
                                 return 3;
                             }
@@ -556,16 +553,9 @@ impl CPU {
 
                 if opcode & 0x07 == 0x07 {
                     // rst tgst3
-                    // dbg!("here it is");
-                    // println!("{:02X}", opcode);
                     let target = (opcode & 0x38) as u16;
-                    //println!("{:02X}", target);
-                    //println!("{:02X}", self.regs.pc);
                     self.push_to_stack(self.regs.pc, mmu);
                     self.regs.pc = target;
-                    //println!("{:02X}", self.regs.pc);
-
-                    //panic!();
                     return 4;
                 }
 
@@ -573,20 +563,12 @@ impl CPU {
                 match opcode & 0x0F {
                     0x01 => {
                         // pop r16stk
-                        //println!("{:02X} at {:04X}", opcode, self.regs.pc);
                         let value = self.pop_from_stack(mmu);
                         self.regs.set_r16_stk(r16, value);
-                        if opcode == 0xF1 {
-                            //println!("pop af( {:02X}) at {:04X}", value, self.regs.pc);
-                        }
                         return 3;
                     },
                     0x05 => {
-                        // push r16stk
-                        if opcode == 0xF5 {
-                            //println!("push af( {:02X}) at {:04X}", self.regs.get_r16_stk(r16), self.regs.pc);
-                        }
-                        
+                        // push r16stk                      
                         self.push_to_stack(self.regs.get_r16_stk(r16), mmu);
                         return 4;
                     },
