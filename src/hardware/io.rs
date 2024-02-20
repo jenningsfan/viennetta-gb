@@ -4,9 +4,11 @@ mod serial;
 pub mod ppu;
 mod timer;
 
+use bitflags::{bitflags, Flags};
 pub use ppu::{WIDTH, HEIGHT, LcdPixels};
 use self::ppu::PPU;
 use self::serial::Serial;
+use self::timer::Timer;
 use super::boot_rom::BOOT_ROM;
 
 #[derive(Debug)]
@@ -81,13 +83,26 @@ impl Cartridge {
     }
 }
 
+bitflags! {
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+    pub struct Interrupts: u8 {
+        const VBlank  = 1 << 0;
+        const LcdStat = 1 << 1;
+        const Timer   = 1 << 2;
+        const Serial  = 1 << 3;
+        const Joypad  = 1 << 4;
+    }
+}
+
 #[derive(Debug)]
 pub struct MMU {
     ppu: PPU,
     ram: RAM,
     serial: Serial,
+    timer: Timer,
     cart: Cartridge,
-    int_enable: u8,
+    pub int_enable: Interrupts,
+    pub int_flag: Interrupts,
     boot_rom_enable: u8,
 }
 
@@ -97,8 +112,10 @@ impl MMU {
             ppu: PPU::default(),
             ram: RAM::default(),
             serial: Serial::default(),
+            timer: Timer::default(),
             cart,
-            int_enable: 0,
+            int_enable: Interrupts::empty(),
+            int_flag: Interrupts::empty(),
             boot_rom_enable: 0,
         }
     }
@@ -107,7 +124,8 @@ impl MMU {
 impl MMU {
     pub fn run_cycles(&mut self, cycles: u8) {
         for _ in 0..cycles {
-            self.ppu.run_cycle();
+            self.int_flag |= self.ppu.run_cycles(cycles * 4);
+            self.int_flag |= self.timer.run_cycles(cycles);
         }
     }
 
@@ -123,16 +141,18 @@ impl MMU {
         match address {
             0x0000..=0x7FFF => self.cart.read_rom(address),                     // ROM
             0x8000..=0x9FFF => self.ppu.read_vram(address - 0x8000),   // VRAM
-            0xA000..=0xBFFF => self.cart.read_ram(address - 0xA000),   // External RAM (MBC)
+            0xA000..=0xBFFF => self.cart.read_ram(address - 0xA000),  // External RAM (MBC)
             0xC000..=0xDFFF => self.ram.read_wram(address - 0xC000),   // WRAM
             0xE000..=0xFDFF => self.ram.read_wram(address - 0xE000),   // Echo RAM
             0xFE00..=0xFE9F => self.ppu.read_oam(address - 0xFE00),    // OAM
             0xFF80..=0xFFFE => self.ram.read_hram(address - 0xFF80),   // HRAM
-            0xFF01 => self.serial.read_data(),      // Serial Data
-            0xFF02 => self.serial.read_control(),   // Serial Control
-            0xFF50 => self.boot_rom_enable,         // Boot ROM Enable/Disable
-            0xFFFF => self.int_enable,              // Interrupt Enable
-            _ => 0x00,  
+            0xFF01 => self.serial.read_data(),                                  // Serial Data
+            0xFF02 => self.serial.read_control(),                               // Serial Control
+            0xFF04..=0xFF07 => self.timer.read_io_reg(address),                 // Timer
+            0xFF0F => self.int_flag.bits() as u8,                             // Interrupt Enable
+            0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
+            0xFFFF => self.int_enable.bits() as u8,                             // Interrupt Enable
+            _ => 0x00,
         }
     }
 
@@ -140,15 +160,18 @@ impl MMU {
         match address {
             0x0000..=0x7FFF => self.cart.write_rom(address, value),                     // ROM
             0x8000..=0x9FFF => self.ppu.write_vram(address - 0x8000, value),   // VRAM
-            0xA000..=0xBFFF => self.cart.write_ram(address - 0xA000, value),   // External RAM (MBC)
+            0xA000..=0xBFFF => self.cart.write_ram(address - 0xA000, value),  // External RAM (MBC)
             0xC000..=0xDFFF => self.ram.write_wram(address - 0xC000, value),   // WRAM
             0xE000..=0xFDFF => self.ram.write_wram(address - 0xE000, value),   // Echo RAM
             0xFE00..=0xFE9F => self.ppu.write_oam(address - 0xFE00, value),    // OAM
             0xFF80..=0xFFFE => self.ram.write_hram(address - 0xFF80, value),   // HRAM
-            0xFF01 => self.serial.write_data(value),      // Serial Data
-            0xFF02 => self.serial.write_control(value),   // Serial Control
-            0xFF50 => self.boot_rom_enable = value,       // Boot ROM Enable/Disable
-            0xFFFF => self.int_enable = value,            // Interrupt Enable
+            0xFF01 => self.serial.write_data(value),                                    // Serial Data
+            0xFF02 => self.serial.write_control(value),                                 // Serial Control
+            0xFF04..=0xFF07 => self.timer.write_io_reg(address, value),            // Timer
+            0xFF0F => self.int_flag = Interrupts::from_bits(value & 0x1F).unwrap(),   // Interrupt Enable
+            0xFF50 => self.boot_rom_enable = value,                                     // Boot ROM Enable/Disable
+            0xFFFF => self.int_enable = Interrupts::from_bits(value & 0x1F)
+                .expect(format!("{:02X} is not a valid IE value", value & 0x1F).as_str()),   // Interrupt Enable
             _ => {},
         }
     }

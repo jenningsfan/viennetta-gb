@@ -1,7 +1,7 @@
 mod registers;
 use registers::*;
 
-use super::io::MMU;
+use super::io::{Interrupts, MMU};
 
 macro_rules! unsupported_opcode {
     ( $( $opcode:expr )+, $( $pc:expr )+ ) => {
@@ -13,10 +13,56 @@ macro_rules! unsupported_opcode {
 pub struct CPU {
     pub regs: Registers,
     int_master_enable: bool,
+    ei_last_instruction: bool,
 }
 
 impl CPU {
-    pub fn execute_opcode(&mut self, mmu: &mut MMU) -> u8 {
+    pub fn tick(&mut self, mmu: &mut MMU) -> u8 {
+        if self.ei_last_instruction {
+            self.int_master_enable = true;
+            self.ei_last_instruction = false;
+        }
+
+        let pending_ints = mmu.int_enable & mmu.int_flag;
+        if pending_ints != Interrupts::empty() && self.int_master_enable {
+            self.int_master_enable = false;
+
+            // TODO: there is probably a better way of writing this
+            let handler = if pending_ints.contains(Interrupts::VBlank) {
+                mmu.int_flag.remove(Interrupts::VBlank);
+                0x40
+            }
+            else if pending_ints.contains(Interrupts::LcdStat) {
+                mmu.int_flag.remove(Interrupts::LcdStat);
+                0x48
+            }
+            else if pending_ints.contains(Interrupts::Timer) {
+                mmu.int_flag.remove(Interrupts::Timer);
+                0x50
+            }
+            else if pending_ints.contains(Interrupts::Serial) {
+                mmu.int_flag.remove(Interrupts::Serial);
+                0x58
+            }
+            else if pending_ints.contains(Interrupts::Joypad) {
+                mmu.int_flag.remove(Interrupts::Joypad);
+                0x60
+            }
+            else {
+                panic!("invalid interrupt value")
+            };
+
+            // TODO: could be more accurate cycle wise
+            // https://gbdev.io/pandocs/Interrupts.html#interrupt-handling
+            self.push_to_stack(self.regs.pc, mmu);
+            self.regs.pc = handler;
+            return 5;
+        }
+
+        self.handle_opcode(mmu)
+    }
+
+    pub fn handle_opcode(&mut self, mmu: &mut MMU) -> u8 {
         let opcode = mmu.read_memory(self.regs.pc);
         //println!("{:04X}", self.regs.pc);
         //println!("{:04X}: {:02X}{:02X}", self.regs.pc, opcode, mmu.read_memory(self.regs.pc + 1));
@@ -53,7 +99,7 @@ impl CPU {
                             self.regs.a = mmu.read_memory(addr);
                             return 2;
                         },
-        
+
                         0x3 => {
                             // inc r16
                             self.regs.apply_r16(r16, |r| r + 1);
@@ -68,7 +114,7 @@ impl CPU {
                             // add hl, r16
                             let hl = self.regs.get_hl();
                             let r16 = self.regs.get_r16(r16);
-        
+
                             self.regs.flags = self.regs.flags & Flags::Zero;
                             if hl.overflowing_add(r16).1 {
                                 self.regs.flags |= Flags::Carry;
@@ -634,7 +680,7 @@ impl CPU {
                     },
                     0xFB => {
                         // ei
-                        self.int_master_enable = true;
+                        self.ei_last_instruction = true;
                         return 1;
                     },
                     0xCB => {

@@ -1,3 +1,5 @@
+use super::Interrupts;
+
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
 pub type LcdPixels = [Colour; WIDTH * HEIGHT];
@@ -62,7 +64,7 @@ impl PPU {
     }
 
 
-    pub fn run_cycle(&mut self) {
-
+    pub fn run_cycles(&mut self, cycles: u8) -> Interrupts {
+        Interrupts::empty()
     }
 }

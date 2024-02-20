@@ -32,8 +32,8 @@ impl GameBoy {
 
     #[inline]
     pub fn run_instruction(&mut self) -> u8 {
-        let cycles = self.cpu.execute_opcode(&mut self.mmu);
-        self.mmu.run_cycles(cycles * 4);
+        let cycles = self.cpu.tick(&mut self.mmu);
+        self.mmu.run_cycles(cycles);
 
         cycles
     }
