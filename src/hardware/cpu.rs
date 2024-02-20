@@ -21,14 +21,14 @@ impl CPU {
         //println!("{:04X}", self.regs.pc);
         //println!("{:04X}: {:02X}{:02X}", self.regs.pc, opcode, mmu.read_memory(self.regs.pc + 1));
         let block = opcode >> 6;
-
-        self.regs.pc += 1;
-        let r16 = (opcode >> 4) & 0x03;
-        let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | mmu.read_memory(self.regs.pc) as u16;
         
+        self.regs.pc += 1;
         //self.dump_regs();
+        
         let cycles = match block {
             0x0 => {
+                let r16 = (opcode >> 4) & 0x03;
+                let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | mmu.read_memory(self.regs.pc) as u16;
                 if opcode == 0x00 {
                     return 1; // nop
                 }
@@ -37,7 +37,6 @@ impl CPU {
                     match opcode & 0xF {
                         0x1 => {
                             // ld r16, imm16
-                            //println!("r16: {r16}\nimm16: {imm16}");
                             self.regs.set_r16(r16, imm16);
                             self.regs.pc += 2;
                             return 3;
@@ -88,7 +87,7 @@ impl CPU {
                     if opcode == 0x08 {
                         // ld [imm16], sp
                         mmu.write_memory(imm16, (self.regs.sp & 0xFF) as u8);
-                        mmu.write_memory(imm16, (self.regs.sp >> 8) as u8);
+                        mmu.write_memory(imm16 + 1, (self.regs.sp >> 8) as u8);
                         self.regs.pc += 2;
                         return 5;
                     }

@@ -9,3 +9,6 @@ test (2).gb
 test.gb
 flamegraph.svg
 daa.gb
+03-working-output.txt
+08-working-output.txt
+03-broken.txt
