@@ -29,6 +29,7 @@ impl Timer {
 
                 self.tima_last_cycle = self.tima_last_cycle.wrapping_add(1);
                 if self.tima_last_cycle % tima_cycle_increment == 0 {
+                    self.tima_last_cycle = 0;
                     self.counter = self.counter.wrapping_add(1);
                     if self.counter == 0 {  // i.e. overflown
                         self.counter = self.modulo;

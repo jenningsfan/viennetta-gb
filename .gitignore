@@ -4,6 +4,7 @@ blank.txt
 Tetris (World) (Rev 1).gb
 tarpaulin-report.html
 cpu_instrs/source
+instr_timing/source
 *.bak
 test (2).gb
 test.gb
