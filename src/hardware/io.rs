@@ -124,7 +124,7 @@ impl MMU {
 impl MMU {
     pub fn run_cycles(&mut self, cycles: u8) {
         for _ in 0..cycles {
-            self.int_flag |= self.ppu.run_cycles(cycles * 4);
+            self.int_flag |= self.ppu.run_cycles(cycles);
             self.int_flag |= self.timer.run_cycles(cycles);
         }
     }
@@ -148,8 +148,9 @@ impl MMU {
             0xFF80..=0xFFFE => self.ram.read_hram(address - 0xFF80),   // HRAM
             0xFF01 => self.serial.read_data(),                                  // Serial Data
             0xFF02 => self.serial.read_control(),                               // Serial Control
-            0xFF04..=0xFF07 => self.timer.read_io_reg(address),                 // Timer
-            0xFF0F => self.int_flag.bits() as u8,                             // Interrupt Enable
+            0xFF04..=0xFF07 => self.timer.read_io(address),                 // Timer
+            0xFF40..=0xFF4B => self.ppu.read_io(address),                       // PPU
+            0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
             0xFFFF => self.int_enable.bits() as u8,                             // Interrupt Enable
             _ => 0x00,
@@ -167,8 +168,9 @@ impl MMU {
             0xFF80..=0xFFFE => self.ram.write_hram(address - 0xFF80, value),   // HRAM
             0xFF01 => self.serial.write_data(value),                                    // Serial Data
             0xFF02 => self.serial.write_control(value),                                 // Serial Control
-            0xFF04..=0xFF07 => self.timer.write_io_reg(address, value),            // Timer
-            0xFF0F => self.int_flag = Interrupts::from_bits(value & 0x1F).unwrap(),   // Interrupt Enable
+            0xFF04..=0xFF07 => self.timer.write_io(address, value),                 // Timer
+            0xFF40..=0xFF4B => self.ppu.write_io(address, value),                       // PPU
+            0xFF0F => self.int_flag = Interrupts::from_bits(value & 0x1F).unwrap(),     // Interrupt Enable
             0xFF50 => self.boot_rom_enable = value,                                     // Boot ROM Enable/Disable
             0xFFFF => self.int_enable = Interrupts::from_bits(value & 0x1F)
                 .expect(format!("{:02X} is not a valid IE value", value & 0x1F).as_str()),   // Interrupt Enable

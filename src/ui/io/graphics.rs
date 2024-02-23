@@ -10,19 +10,19 @@ pub fn convert_gameboy_to_rgb565(gameboy: LcdPixels) -> [u8; WIDTH * HEIGHT * PI
      for (i, pixel) in gameboy.iter().enumerate() {
         let i = i * 2;
 
-        result[i] = match pixel {
-            Colour::White => 0xFF,
-            Colour::LightGrey => 0x73,
-            Colour::DarkGrey => 0x4B,
-            Colour::Black => 0x00,
-        };
+        // result[i] = match pixel {
+        //     Colour::White => 0xFF,
+        //     Colour::LightGrey => 0x73,
+        //     Colour::DarkGrey => 0x4B,
+        //     Colour::Black => 0x00,
+        // };
 
-        result[i + 1] = match pixel {
-            Colour::White => 0xFF,
-            Colour::LightGrey => 0xB5,
-            Colour::DarkGrey => 0x6B,
-            Colour::Black => 0x00,
-        };
+        // result[i + 1] = match pixel {
+        //     Colour::White => 0xFF,
+        //     Colour::LightGrey => 0xB5,
+        //     Colour::DarkGrey => 0x6B,
+        //     Colour::Black => 0x00,
+        // };
     }
 
     result
