@@ -72,11 +72,37 @@ struct Palettes {
     obj2_palette: u8,
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+struct Object {
+    x: u8,
+    y: u8,
+    tile: u8,
+    priority: bool,
+    x_flip: bool,
+    y_flip: bool,
+    palette: bool,
+}
+
+impl Object {
+    fn from_bytes(bytes: u32) -> Self {
+        let flags = bytes & 0xFF;
+        Self {
+            x: ((bytes >> 16) & 0xFF) as u8,
+            y: (bytes >> 24) as u8,
+            tile: ((bytes >> 8) & 0xFF) as u8,
+            priority: (flags >> 7) == 1,
+            x_flip: (flags >> 6) == 1,
+            y_flip: (flags >> 5) == 1,
+            palette: (flags >> 4) == 1,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct PPU {
     lcd: LcdPixels,
     mode: Mode,
-    scanline: u8,
+    line_y: u8,
     cycles_line: u8,
     vram: [u8; 0x2000],
     oam: [u8; 0x100],
@@ -89,13 +115,15 @@ pub struct PPU {
     win_x: u8,
     win_y: u8,
     palettes: Palettes,
+    pixel_buffer: u16,
+    objects_array: Vec<Object>,
 }
 
 impl Default for PPU {
     fn default() -> Self {
         Self {
             mode: Mode::OAMScan,
-            scanline: 0,
+            line_y: 0,
             cycles_line: 0,
             lcd: [0; WIDTH * HEIGHT],
             vram: [0; 0x2000],
@@ -109,6 +137,8 @@ impl Default for PPU {
             win_x: 0,
             win_y: 0,
             palettes: Palettes::default(),
+            pixel_buffer: 0,
+            objects_array: vec![],
         }
     }
 }
@@ -169,7 +199,7 @@ impl PPU {
             0xFF41 => self.status,
             0xFF42 => self.scroll_y,
             0xFF43 => self.scroll_x,
-            0xFF44 => self.scanline,
+            0xFF44 => self.line_y,
             0xFF45 => self.line_compare,
             0xFF47 => self.palettes.bg_palette,
             0xFF48 => self.palettes.obj1_palette,
@@ -212,8 +242,35 @@ impl PPU {
         if self.update_stat() {
             interrupts |= Interrupts::LcdStat;
         }        
+        self.update_lcd();
 
         interrupts
+    }
+
+    fn update_lcd(&mut self) {
+        
+    }
+
+    fn oam_search(&self) -> Vec<Object> {
+        let mut objects = vec![];
+
+        for object in self.oam.chunks_exact(4) {
+            let object = (u32::from(object[0]) << 24)
+            | (u32::from(object[1]) << 16)
+            | (u32::from(object[2]) << 8)
+            | u32::from(object[3]);
+            let object = Object::from_bytes(object);
+            let obj_height = if self.lcdc.contains(LCDC::ObjSize) { 16 } else { 8 };
+            
+            if self.line_y + 16 >= object.y && self.line_y + 16 < object.y + obj_height {
+                objects.push(object);
+            }
+            if objects.len() == 10 {
+                break;
+            }
+        } 
+
+        objects
     }
 
     fn update_mode(&mut self) -> Interrupts {
@@ -235,13 +292,14 @@ impl PPU {
         }
         else if self.cycles_line == LINE_LEN {
             self.mode = Mode::OAMScan;
+            self.objects_array = self.oam_search();
             self.status &= 0x7C | Mode::OAMScan as u8;
-            self.scanline += 1;
+            self.line_y += 1;
 
-            if self.scanline == FRAME_SCANLINES {
-                self.scanline = 0;
+            if self.line_y == FRAME_SCANLINES {
+                self.line_y = 0;
             }
-            else if self.scanline == VBLANK_START {
+            else if self.line_y == VBLANK_START {
                 self.mode = Mode::VBlank;
                 self.status &= 0x7C | Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
@@ -253,7 +311,7 @@ impl PPU {
 
     fn update_stat(&mut self) -> bool {
         let old_stat_flag = self.stat_flag;
-        if self.scanline == self.line_compare {
+        if self.line_y == self.line_compare {
             self.status |= StatReg::LycLy as u8;
 
             if self.status | StatReg::LycInt as u8 == StatReg::LycInt as u8 {
