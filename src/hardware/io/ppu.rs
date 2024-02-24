@@ -1,5 +1,5 @@
 use super::Interrupts;
-use bitflags::{bitflags};
+use bitflags::bitflags;
 
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
@@ -134,19 +134,33 @@ impl PPU {
     }
 
     pub fn read_vram(&self, address: u16) -> u8 {
-        self.vram[address as usize]
+        if self.mode != Mode::Drawing {
+            self.vram[address as usize]
+        }
+        else {
+            0xFF
+        }
     }
 
     pub fn write_vram(&mut self, address: u16, value: u8) {
-        self.vram[address as usize] = value;
+        if self.mode != Mode::Drawing {
+            self.vram[address as usize] = value;
+        }
     }
 
     pub fn read_oam(&self, address: u16) -> u8 {
-        self.oam[address as usize]
+        if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
+            self.oam[address as usize]
+        }
+        else {
+            0xFF
+        }
     }
 
     pub fn write_oam(&mut self, address: u16, value: u8) {
-        self.oam[address as usize] = value;
+        if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
+            self.oam[address as usize] = value;
+        }
     }
 
     pub fn read_io(&self, address: u16) -> u8 {
@@ -170,7 +184,14 @@ impl PPU {
         match address {
             0xFF40 => self.lcdc = LCDC::from_bits(value).unwrap(),
             0xFF41 => self.status = value & 0x7C,
+            0xFF42 => self.scroll_y = value,
+            0xFF43 => self.scroll_x = value,
             0xFF45 => self.line_compare = value,
+            0xFF47 => self.palettes.bg_palette = value,
+            0xFF48 => self.palettes.obj1_palette = value,
+            0xFF49 => self.palettes.obj2_palette = value,
+            0xFF4A => self.win_y = value,
+            0xFF4B => self.win_x = value,
             _ => {},
         }
     }
@@ -186,6 +207,16 @@ impl PPU {
     }
 
     fn run_cycle(&mut self) -> Interrupts {
+        let mut interrupts = Interrupts::empty();
+        interrupts |= self.update_mode();
+        if self.update_stat() {
+            interrupts |= Interrupts::LcdStat;
+        }        
+
+        interrupts
+    }
+
+    fn update_mode(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
 
         if !self.lcdc.contains(LCDC::PpuEnable) {
@@ -217,6 +248,10 @@ impl PPU {
             }
         }
 
+        interrupts
+    }
+
+    fn update_stat(&mut self) -> bool {
         let old_stat_flag = self.stat_flag;
         if self.scanline == self.line_compare {
             self.status |= StatReg::LycLy as u8;
@@ -238,10 +273,6 @@ impl PPU {
             self.stat_flag = true;
         }
 
-        if !old_stat_flag && self.stat_flag {
-            interrupts |= Interrupts::LcdStat;
-        }
-
-        interrupts
+        !old_stat_flag && self.stat_flag
     }
 }

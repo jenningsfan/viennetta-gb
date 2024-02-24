@@ -4,7 +4,7 @@ mod serial;
 pub mod ppu;
 mod timer;
 
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 pub use ppu::{WIDTH, HEIGHT, LcdPixels};
 use self::ppu::PPU;
 use self::serial::Serial;
@@ -104,6 +104,7 @@ pub struct MMU {
     pub int_enable: Interrupts,
     pub int_flag: Interrupts,
     boot_rom_enable: u8,
+    dma_transfer_offset: Option<u16>, 
 }
 
 impl MMU {
@@ -117,6 +118,7 @@ impl MMU {
             int_enable: Interrupts::empty(),
             int_flag: Interrupts::empty(),
             boot_rom_enable: 0,
+            dma_transfer_offset: None,
         }
     }
 }
@@ -126,6 +128,13 @@ impl MMU {
         for _ in 0..cycles {
             self.int_flag |= self.ppu.run_cycles(cycles);
             self.int_flag |= self.timer.run_cycles(cycles);
+            if let Some(addr) = self.dma_transfer_offset {
+                self.ppu.write_oam(addr, self.read_memory(0xFE00 | (addr & 0xFF)));
+                self.dma_transfer_offset = Some(addr + 1);
+                if (addr + 1) & 0xA0 == 0xA0 {
+                    self.dma_transfer_offset = None;
+                }
+            }
         }
     }
 
@@ -169,6 +178,7 @@ impl MMU {
             0xFF01 => self.serial.write_data(value),                                    // Serial Data
             0xFF02 => self.serial.write_control(value),                                 // Serial Control
             0xFF04..=0xFF07 => self.timer.write_io(address, value),                 // Timer
+            0xFF46 => self.oam_dma(value),                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.write_io(address, value),                       // PPU
             0xFF0F => self.int_flag = Interrupts::from_bits(value & 0x1F).unwrap(),     // Interrupt Enable
             0xFF50 => self.boot_rom_enable = value,                                     // Boot ROM Enable/Disable
@@ -176,5 +186,9 @@ impl MMU {
                 .expect(format!("{:02X} is not a valid IE value", value & 0x1F).as_str()),   // Interrupt Enable
             _ => {},
         }
+    }
+
+    fn oam_dma(&mut self, address: u8) {
+        self.dma_transfer_offset = Some((address as u16) << 8);
     }
 }
