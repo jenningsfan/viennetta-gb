@@ -5,13 +5,14 @@ pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
 pub type LcdPixels = [u16; WIDTH * HEIGHT];
 
-const OAM_START: u8 = 0;
-const DRAW_START: u8 = 20;
-const HBLANK_START: u8 = 63;
-const LINE_LEN: u8 = 114;
+const OAM_START: u16 = 0;
+const DRAW_START: u16 = 80;
+const LINE_LEN: u16 = 456;
 const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
 const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
+
+const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
 
 bitflags! {
     #[derive(Debug)]
@@ -36,7 +37,7 @@ enum StatReg {
     LycInt = 1 << 6,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Mode {
     HBlank = 0,
     VBlank = 1,
@@ -102,8 +103,9 @@ impl Object {
 pub struct PPU {
     lcd: LcdPixels,
     mode: Mode,
-    line_y: u8,
-    cycles_line: u8,
+    pub line_y: u8,
+    pub line_x: u8,
+    pub cycles_line: u16,
     vram: [u8; 0x2000],
     oam: [u8; 0x100],
     lcdc: LCDC,
@@ -124,8 +126,9 @@ impl Default for PPU {
         Self {
             mode: Mode::OAMScan,
             line_y: 0,
-            cycles_line: 0,
-            lcd: [0; WIDTH * HEIGHT],
+            line_x: 0,
+            cycles_line: 455,               // So that first line has OAM scan
+            lcd: [0xFFFF; WIDTH * HEIGHT],
             vram: [0; 0x2000],
             oam: [0; 0x100],
             lcdc: LCDC::empty(),
@@ -146,21 +149,6 @@ impl Default for PPU {
 impl PPU {
     pub fn get_frame(&self) -> LcdPixels {
         self.lcd
-
-        // to be used later
-        // result[i] = match pixel {
-        //     Colour::White => 0xFF,
-        //     Colour::LightGrey => 0x73,
-        //     Colour::DarkGrey => 0x4B,
-        //     Colour::Black => 0x00,
-        // };
-
-        // result[i + 1] = match pixel {
-        //     Colour::White => 0xFF,
-        //     Colour::LightGrey => 0xB5,
-        //     Colour::DarkGrey => 0x6B,
-        //     Colour::Black => 0x00,
-        // };
     }
 
     pub fn read_vram(&self, address: u16) -> u8 {
@@ -229,8 +217,13 @@ impl PPU {
     pub fn run_cycles(&mut self, cycles: u8) -> Interrupts {
         let mut interrupts = Interrupts::empty();
 
-        for _ in 0..cycles {
-            interrupts |= self.run_cycle();
+        if self.lcdc.contains(LCDC::PpuEnable) {
+            for _ in 0..cycles {
+                interrupts |= self.run_cycle();
+            }
+        }
+        else {
+            self.lcd = [0xFFFF; WIDTH * HEIGHT];
         }
 
         interrupts
@@ -239,16 +232,29 @@ impl PPU {
     fn run_cycle(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
+        //dbg!(self.mode);
+        if self.mode == Mode::Drawing {
+            self.update_lcd();
+        }
         if self.update_stat() {
             interrupts |= Interrupts::LcdStat;
-        }        
-        self.update_lcd();
-
+        }
+        //dbg!(self.line_y);
         interrupts
     }
 
     fn update_lcd(&mut self) {
-        
+        //dbg!(self.line_x);
+        //dbg!(self.line_y);
+        self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[self.line_x as usize % 4];
+        //self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[1];
+        self.line_x += 1;
+
+        if self.line_x == 160 {
+            self.mode = Mode::HBlank;
+            self.status &= 0x7C | Mode::HBlank as u8;
+            //println!("Enable HBLANK {}", self.cycles_line);
+        }
     }
 
     fn oam_search(&self) -> Vec<Object> {
@@ -275,38 +281,49 @@ impl PPU {
 
     fn update_mode(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
-
-        if !self.lcdc.contains(LCDC::PpuEnable) {
-            self.lcd = [0; WIDTH * HEIGHT];
-            return interrupts
-        }
-
+        
         self.cycles_line += 1;
-        if self.cycles_line == DRAW_START {
+        // if self.cycles_line == LINE_LEN {
+        //     self.cycles_line = 0;
+        //     println!("New line new line new linety line")
+        // }
+        if self.cycles_line == DRAW_START && self.mode != Mode::VBlank {
+            self.line_x = 0;
             self.mode = Mode::Drawing;
             self.status &= 0x7C | Mode::Drawing as u8;
-        }
-        else if self.cycles_line == HBLANK_START {
-            self.mode = Mode::HBlank;
-            self.status &= 0x7C | Mode::HBlank as u8;
+            //println!("Change to drawing");
+            //dbg!(self.line_y);
         }
         else if self.cycles_line == LINE_LEN {
-            self.mode = Mode::OAMScan;
-            self.objects_array = self.oam_search();
-            self.status &= 0x7C | Mode::OAMScan as u8;
             self.line_y += 1;
-
+            self.cycles_line = 0;
+            self.line_x = 0;
+            
             if self.line_y == FRAME_SCANLINES {
+                println!("reset");
                 self.line_y = 0;
+                self.mode = Mode::OAMScan;
             }
             else if self.line_y == VBLANK_START {
+                //println!("VBLANK");
                 self.mode = Mode::VBlank;
                 self.status &= 0x7C | Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
             }
+            
+            if self.mode != Mode::VBlank {
+                self.enter_oam_scan();
+            }
         }
-
+        //dbg!(self.mode);
         interrupts
+    }
+
+    fn enter_oam_scan(&mut self) {
+        //println!("Change to OAM scan");
+        self.mode = Mode::OAMScan;
+        self.objects_array = self.oam_search();
+        self.status &= 0x7C | Mode::OAMScan as u8;
     }
 
     fn update_stat(&mut self) -> bool {

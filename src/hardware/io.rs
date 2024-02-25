@@ -96,7 +96,7 @@ bitflags! {
 
 #[derive(Debug)]
 pub struct MMU {
-    ppu: PPU,
+    pub ppu: PPU,
     ram: RAM,
     serial: Serial,
     timer: Timer,
@@ -126,8 +126,9 @@ impl MMU {
 impl MMU {
     pub fn run_cycles(&mut self, cycles: u8) {
         for _ in 0..cycles {
-            self.int_flag |= self.ppu.run_cycles(cycles);
+            self.int_flag |= self.ppu.run_cycles(cycles * 4);
             self.int_flag |= self.timer.run_cycles(cycles);
+
             if let Some(addr) = self.dma_transfer_offset {
                 self.ppu.write_oam(addr, self.read_memory(0xFE00 | (addr & 0xFF)));
                 self.dma_transfer_offset = Some(addr + 1);
