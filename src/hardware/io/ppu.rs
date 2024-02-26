@@ -99,6 +99,11 @@ impl Object {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+struct PixelFetcher {
+    pub scroll_x_left: u8,
+}
+
 #[derive(Debug)]
 pub struct PPU {
     lcd: LcdPixels,
@@ -119,6 +124,7 @@ pub struct PPU {
     palettes: Palettes,
     pixel_buffer: u16,
     objects_array: Vec<Object>,
+    fifo: PixelFetcher,
 }
 
 impl Default for PPU {
@@ -142,6 +148,7 @@ impl Default for PPU {
             palettes: Palettes::default(),
             pixel_buffer: 0,
             objects_array: vec![],
+            fifo: PixelFetcher::default(),
         }
     }
 }
@@ -244,11 +251,40 @@ impl PPU {
     }
 
     fn update_lcd(&mut self) {
-        //dbg!(self.line_x);
-        //dbg!(self.line_y);
-        self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[self.line_x as usize % 4];
-        //self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[1];
-        self.line_x += 1;
+        let x = (self.scroll_x / 8 + self.line_x) as usize & 0x1F;
+        let y = (self.line_y + self.scroll_y) as usize & 0xFF;
+
+        let tilemap = if self.lcdc.contains(LCDC::BgTileMap) {
+            0x1800
+        }
+        else {
+            0x1C00
+        };
+        //println!("{:04X} {} {}", tilemap, y, x);
+        let fetcher_x = ((self.scroll_x / 8) + self.line_x) & 0x1F;
+        let fetcher_y = self.line_y.wrapping_add(self.scroll_y);
+
+        let tile = self.vram[tilemap + (fetcher_y as usize / 8) * 32 + fetcher_x as usize] as usize + (fetcher_y as usize % 8);
+        //dbg!(tile);
+        dbg!((fetcher_y as usize / 8) * 32 + fetcher_x as usize);
+        let tile_data = if self.lcdc.contains(LCDC::BgTileData) {
+            (self.vram[tile], self.vram[tile + 1])
+        }
+        else {
+            if tile > 127 {
+                let tile = !tile + 1;
+                (self.vram[0x800 + tile], self.vram[0x800 + tile + 1])
+            }
+            else {
+                (self.vram[0x1000 + tile], self.vram[0x1000 + tile + 1])
+            }
+        };
+
+        for i in 0..8 {
+            let tile = tile_data.0 & (1 << i) | tile_data.1 & (1 << i);
+            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[tile as usize];
+            self.line_x += 1;
+        }
 
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
@@ -300,7 +336,7 @@ impl PPU {
             self.line_x = 0;
             
             if self.line_y == FRAME_SCANLINES {
-                println!("reset");
+                //println!("reset");
                 self.line_y = 0;
                 self.mode = Mode::OAMScan;
             }

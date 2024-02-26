@@ -17,6 +17,7 @@ features = [ "unstable-env-commands" ]
 
 [profile.release]
 debug = true
+incremental = true
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

@@ -26,7 +26,7 @@ impl GameBoy {
         while total_cycles < CYCLES_PER_FRAME {
             total_cycles += self.run_instruction() as u16;
         }
-        println!("FRAME FRAME FRAMETY FRAME Y: {} X: {} CYCLES: {}", self.mmu.ppu.line_y, self.mmu.ppu.line_x, self.mmu.ppu.cycles_line);
+        //println!("FRAME FRAME FRAMETY FRAME Y: {} X: {} CYCLES: {}", self.mmu.ppu.line_y, self.mmu.ppu.line_x, self.mmu.ppu.cycles_line);
         self.mmu.get_frame()
     }
 
