@@ -163,7 +163,7 @@ impl MMU {
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
             0xFFFF => self.int_enable.bits() as u8,                             // Interrupt Enable
-            _ => 0x00,
+            _ => 0xff ,
         }
     }
 

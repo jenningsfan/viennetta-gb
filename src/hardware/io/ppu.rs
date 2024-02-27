@@ -297,7 +297,7 @@ impl PPU {
         }
         else {
             if tile / 16 > 127 {
-                let tile = !tile + 1;
+                let tile = (!tile as u8 + 1) as usize;
                 (self.vram[0x800 + tile], self.vram[0x800 + tile + 1])
             }
             else {
