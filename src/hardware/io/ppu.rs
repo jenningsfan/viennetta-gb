@@ -102,6 +102,7 @@ impl Object {
 #[derive(Default, Debug, Clone, Copy)]
 struct PixelFetcher {
     pub scroll_x_left: u8,
+    pub x_pos: u8,
 }
 
 #[derive(Debug)]
@@ -125,13 +126,14 @@ pub struct PPU {
     pixel_buffer: u16,
     objects_array: Vec<Object>,
     fifo: PixelFetcher,
+    pub debug: bool,
 }
 
 impl Default for PPU {
     fn default() -> Self {
         Self {
             mode: Mode::OAMScan,
-            line_y: 0,
+            line_y: FRAME_SCANLINES - 1,
             line_x: 0,
             cycles_line: 455,               // So that first line has OAM scan
             lcd: [0xFFFF; WIDTH * HEIGHT],
@@ -149,6 +151,7 @@ impl Default for PPU {
             pixel_buffer: 0,
             objects_array: vec![],
             fifo: PixelFetcher::default(),
+            debug: false,
         }
     }
 }
@@ -255,23 +258,45 @@ impl PPU {
         let y = (self.line_y + self.scroll_y) as usize & 0xFF;
 
         let tilemap = if self.lcdc.contains(LCDC::BgTileMap) {
-            0x1800
+            0x1C00
         }
         else {
-            0x1C00
+            0x1800
         };
         //println!("{:04X} {} {}", tilemap, y, x);
-        let fetcher_x = ((self.scroll_x / 8) + self.line_x) & 0x1F;
-        let fetcher_y = self.line_y.wrapping_add(self.scroll_y);
+        // self.scroll_x = 0;
+        // self.scroll_y = 0xA0;
+        // self.line_x = 5;
+        // self.line_y = 0x60;
 
-        let tile = self.vram[tilemap + (fetcher_y as usize / 8) * 32 + fetcher_x as usize] as usize + (fetcher_y as usize % 8);
-        //dbg!(tile);
-        dbg!((fetcher_y as usize / 8) * 32 + fetcher_x as usize);
+        let fetcher_x = ((self.scroll_x / 8) + self.fifo.x_pos) & 0x1F;
+        let fetcher_y = self.line_y.wrapping_add(self.scroll_y);
+        
+        // for i in 0x1800..0x1C00 {
+        //     if self.vram[i] != 0x20 {
+        //         println!("FOUND ONE {:04X}", i + 0x8000);
+        //     }
+        // }
+        // let fetcher_x = 3;
+        // let fetcher_y = (fetcher_y as usize % 8);
+
+        let tile = self.vram[tilemap + (fetcher_y as usize / 8) * 32 + fetcher_x as usize] as usize * 16;
+        if self.debug {
+            println!("tile: {:02X}", tile - (fetcher_y as usize % 8));
+            println!("y: {}", fetcher_y);
+            println!("LCDc: {:02X}", self.lcdc.bits());
+            //dbg!((fetcher_y as usize / 8) * 32 + fetcher_x as usize);
+            println!("TILEMAP: {:04X}", tilemap);
+            println!("addr read: {:04X}", 0x8000 + tilemap + (fetcher_y as usize / 8) * 4 + fetcher_x as usize);
+            //let tile = 0x240 + (fetcher_y as usize % 8) * 2;
+            
+        }
+        let tile = tile + (fetcher_y as usize % 8) * 2;
         let tile_data = if self.lcdc.contains(LCDC::BgTileData) {
             (self.vram[tile], self.vram[tile + 1])
         }
         else {
-            if tile > 127 {
+            if tile / 16 > 127 {
                 let tile = !tile + 1;
                 (self.vram[0x800 + tile], self.vram[0x800 + tile + 1])
             }
@@ -281,15 +306,17 @@ impl PPU {
         };
 
         for i in 0..8 {
-            let tile = tile_data.0 & (1 << i) | tile_data.1 & (1 << i);
+            let i = 7 - i;
+            let tile = ((tile_data.0 >> i) & 1) << 1 | ((tile_data.1 >> i) & 1);
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[tile as usize];
             self.line_x += 1;
         }
-
+        self.fifo.x_pos += 1;
+        
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
             self.status &= 0x7C | Mode::HBlank as u8;
-            //println!("Enable HBLANK {}", self.cycles_line);
+            self.fifo.x_pos = 0;
         }
     }
 
@@ -324,6 +351,7 @@ impl PPU {
         //     println!("New line new line new linety line")
         // }
         if self.cycles_line == DRAW_START && self.mode != Mode::VBlank {
+            self.fifo.x_pos = 0;
             self.line_x = 0;
             self.mode = Mode::Drawing;
             self.status &= 0x7C | Mode::Drawing as u8;

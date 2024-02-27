@@ -130,7 +130,7 @@ impl MMU {
             self.int_flag |= self.timer.run_cycles(cycles);
 
             if let Some(addr) = self.dma_transfer_offset {
-                self.ppu.write_oam(addr, self.read_memory(0xFE00 | (addr & 0xFF)));
+                self.ppu.write_oam((addr & 0xFF), self.read_memory(addr));
                 self.dma_transfer_offset = Some(addr + 1);
                 if (addr + 1) & 0xA0 == 0xA0 {
                     self.dma_transfer_offset = None;

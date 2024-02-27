@@ -7,6 +7,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'viennetta_gb'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=viennetta_gb",
+                    "--package=viennetta_gb"
+                ],
+                "filter": {
+                    "name": "viennetta_gb",
+                    "kind": "bin"
+                }
+            },
+            "args": ["./cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", "--debugger"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'viennetta_gb'",
             "cargo": {
                 "args": [
@@ -18,24 +36,6 @@
                 "filter": {
                     "name": "viennetta_gb",
                     "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'viennetta_gb'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=viennetta_gb",
-                    "--package=viennetta_gb"
-                ],
-                "filter": {
-                    "name": "viennetta_gb",
-                    "kind": "bin"
                 }
             },
             "args": [],

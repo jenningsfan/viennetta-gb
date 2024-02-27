@@ -61,6 +61,9 @@ fn main() {
                         }
                         println!();
                     }
+                    "ppu" => {
+                        gameboy.mmu.ppu.debug = true;
+                    }
                     _ => println!("Not a valid command"),
                 }
             }
