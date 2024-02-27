@@ -308,7 +308,9 @@ impl PPU {
         for i in 0..8 {
             let i = 7 - i;
             let tile = ((tile_data.0 >> i) & 1) << 1 | ((tile_data.1 >> i) & 1);
-            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[tile as usize];
+            let palette = self.palettes.bg_palette;
+            let colour = (palette >> (tile * 2)) & 3;
+            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             self.line_x += 1;
         }
         self.fifo.x_pos += 1;
