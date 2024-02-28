@@ -1,10 +1,11 @@
-use std::ffi::{CString, c_void};
+use std::{env::JoinPathsError, ffi::{c_void, CString}};
 
 use rust_libretro::{
     contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
 }; // TODO: see which imports are necessary
 
 use crate::hardware::{io::{Cartridge, HEIGHT, WIDTH}, GameBoy};
+use crate::hardware::io::joypad::Buttons;
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 
 fn convert_data_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
@@ -76,8 +77,28 @@ impl Core for ViennettaCore {
 
     #[inline]
     fn on_run(&mut self, ctx: &mut RunContext, _delta_us: Option<i64>) {
+        self.update_gb_joypad(ctx);
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
         ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
+    }
+}
+
+impl ViennettaCore {
+    fn update_gb_joypad(&mut self, ctx: &mut RunContext) {
+        let buttons = [
+            JoypadState::A, JoypadState::B, JoypadState::SELECT, JoypadState::START,
+            JoypadState::RIGHT, JoypadState::LEFT, JoypadState::UP, JoypadState::DOWN
+        ];
+        let joypad = ctx.get_joypad_state(0, 0);
+        let mut gb_buttons = 0xFF;
+
+        for (i, button) in buttons.iter().enumerate() {
+            if joypad.contains(*button) {
+                gb_buttons &= !(1 << i);
+            }
+        }
+
+        self.gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
     }
 }
 

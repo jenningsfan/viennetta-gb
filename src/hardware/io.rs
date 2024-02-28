@@ -1,5 +1,5 @@
 mod apu;
-mod joypad;
+pub mod joypad;
 mod serial;
 pub mod ppu;
 mod timer;
@@ -9,6 +9,7 @@ pub use ppu::{WIDTH, HEIGHT, LcdPixels};
 use self::ppu::PPU;
 use self::serial::Serial;
 use self::timer::Timer;
+use self::joypad::Joypad;
 use super::boot_rom::BOOT_ROM;
 
 #[derive(Debug)]
@@ -101,6 +102,7 @@ pub struct MMU {
     serial: Serial,
     timer: Timer,
     cart: Cartridge,
+    pub joypad: Joypad,
     pub int_enable: Interrupts,
     pub int_flag: Interrupts,
     boot_rom_enable: u8,
@@ -114,6 +116,7 @@ impl MMU {
             ram: RAM::default(),
             serial: Serial::default(),
             timer: Timer::default(),
+            joypad: Joypad::default(),
             cart,
             int_enable: Interrupts::empty(),
             int_flag: Interrupts::empty(),
@@ -130,7 +133,7 @@ impl MMU {
             self.int_flag |= self.timer.run_cycles(cycles);
 
             if let Some(addr) = self.dma_transfer_offset {
-                self.ppu.write_oam((addr & 0xFF), self.read_memory(addr));
+                self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
                 self.dma_transfer_offset = Some(addr + 1);
                 if (addr + 1) & 0xA0 == 0xA0 {
                     self.dma_transfer_offset = None;
@@ -156,6 +159,7 @@ impl MMU {
             0xE000..=0xFDFF => self.ram.read_wram(address - 0xE000),   // Echo RAM
             0xFE00..=0xFE9F => self.ppu.read_oam(address - 0xFE00),    // OAM
             0xFF80..=0xFFFE => self.ram.read_hram(address - 0xFF80),   // HRAM
+            0xFF00 => self.joypad.read(),                                       // Joypad
             0xFF01 => self.serial.read_data(),                                  // Serial Data
             0xFF02 => self.serial.read_control(),                               // Serial Control
             0xFF04..=0xFF07 => self.timer.read_io(address),                 // Timer
@@ -163,7 +167,7 @@ impl MMU {
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
             0xFFFF => self.int_enable.bits() as u8,                             // Interrupt Enable
-            _ => 0xff ,
+            _ => 0x00,
         }
     }
 
@@ -176,6 +180,7 @@ impl MMU {
             0xE000..=0xFDFF => self.ram.write_wram(address - 0xE000, value),   // Echo RAM
             0xFE00..=0xFE9F => self.ppu.write_oam(address - 0xFE00, value),    // OAM
             0xFF80..=0xFFFE => self.ram.write_hram(address - 0xFF80, value),   // HRAM
+            0xFF00 => self.joypad.write(value),                                         // Joypad
             0xFF01 => self.serial.write_data(value),                                    // Serial Data
             0xFF02 => self.serial.write_control(value),                                 // Serial Control
             0xFF04..=0xFF07 => self.timer.write_io(address, value),                 // Timer
