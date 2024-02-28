@@ -1,3 +1,6 @@
+mod fifo;
+
+use fifo::*;
 use super::Interrupts;
 use bitflags::bitflags;
 
@@ -15,7 +18,7 @@ const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
 const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     struct LCDC: u8 {
         const PpuEnable = 1 << 7;
         const WinTileMap = 1 << 6;
@@ -99,12 +102,6 @@ impl Object {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-struct PixelFetcher {
-    pub scroll_x_left: u8,
-    pub x_pos: u8,
-}
-
 #[derive(Debug)]
 pub struct PPU {
     lcd: LcdPixels,
@@ -123,9 +120,8 @@ pub struct PPU {
     win_x: u8,
     win_y: u8,
     palettes: Palettes,
-    pixel_buffer: u16,
     objects_array: Vec<Object>,
-    fifo: PixelFetcher,
+    fifo: FIFO,
     pub debug: bool,
 }
 
@@ -148,9 +144,8 @@ impl Default for PPU {
             win_x: 0,
             win_y: 0,
             palettes: Palettes::default(),
-            pixel_buffer: 0,
             objects_array: vec![],
-            fifo: PixelFetcher::default(),
+            fifo: FIFO::default(),
             debug: false,
         }
     }
@@ -242,79 +237,22 @@ impl PPU {
     fn run_cycle(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
-        //dbg!(self.mode);
         if self.mode == Mode::Drawing {
             self.update_lcd();
         }
         if self.update_stat() {
             interrupts |= Interrupts::LcdStat;
         }
-        //dbg!(self.line_y);
         interrupts
     }
-
+                                                                                       
     fn update_lcd(&mut self) {
-        let x = (self.scroll_x / 8 + self.line_x) as usize & 0x1F;
-        let y = (self.line_y + self.scroll_y) as usize & 0xFF;
-
-        let tilemap = if self.lcdc.contains(LCDC::BgTileMap) {
-            0x1C00
-        }
-        else {
-            0x1800
-        };
-        //println!("{:04X} {} {}", tilemap, y, x);
-        // self.scroll_x = 0;
-        // self.scroll_y = 0xA0;
-        // self.line_x = 5;
-        // self.line_y = 0x60;
-
-        let fetcher_x = ((self.scroll_x / 8) + self.fifo.x_pos) & 0x1F;
-        let fetcher_y = self.line_y.wrapping_add(self.scroll_y);
-        
-        // for i in 0x1800..0x1C00 {
-        //     if self.vram[i] != 0x20 {
-        //         println!("FOUND ONE {:04X}", i + 0x8000);
-        //     }
-        // }
-        // let fetcher_x = 3;
-        // let fetcher_y = (fetcher_y as usize % 8);
-
-        let tile = self.vram[tilemap + (fetcher_y as usize / 8) * 32 + fetcher_x as usize] as usize * 16;
-        if self.debug {
-            println!("tile: {:02X}", tile - (fetcher_y as usize % 8));
-            println!("y: {}", fetcher_y);
-            println!("LCDc: {:02X}", self.lcdc.bits());
-            //dbg!((fetcher_y as usize / 8) * 32 + fetcher_x as usize);
-            println!("TILEMAP: {:04X}", tilemap);
-            println!("addr read: {:04X}", 0x8000 + tilemap + (fetcher_y as usize / 8) * 4 + fetcher_x as usize);
-            //let tile = 0x240 + (fetcher_y as usize % 8) * 2;
-            
-        }
-        let tile = tile + (fetcher_y as usize % 8) * 2;
-        let tile_data = if self.lcdc.contains(LCDC::BgTileData) {
-            (self.vram[tile], self.vram[tile + 1])
-        }
-        else {
-            if tile / 16 > 127 {
-                let tile = (!tile as u8 + 1) as usize;
-                (self.vram[0x800 + tile], self.vram[0x800 + tile + 1])
-            }
-            else {
-                (self.vram[0x1000 + tile], self.vram[0x1000 + tile + 1])
-            }
-        };
-
-        for i in 0..8 {
-            let i = 7 - i;
-            let tile = ((tile_data.0 >> i) & 1) << 1 | ((tile_data.1 >> i) & 1);
-            let palette = self.palettes.bg_palette;
-            let colour = (palette >> (tile * 2)) & 3;
+        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.vram, self.lcdc);
+        if let Some(colour) = colour {
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             self.line_x += 1;
         }
-        self.fifo.x_pos += 1;
-        
+
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
             self.status &= 0x7C | Mode::HBlank as u8;

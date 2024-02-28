@@ -16,6 +16,7 @@ pub struct CPU {
     pub regs: Registers,
     int_master_enable: bool,
     ei_last_instruction: bool,
+    halt_mode: bool,
 }
 
 impl CPU {
@@ -26,39 +27,42 @@ impl CPU {
         }
 
         let pending_ints = mmu.int_enable & mmu.int_flag;
-        if pending_ints != Interrupts::empty() && self.int_master_enable {
-            self.int_master_enable = false;
+        if pending_ints != Interrupts::empty() {
+            self.halt_mode = false;
+            if self.int_master_enable {
+                self.int_master_enable = false;
 
-            // TODO: there is probably a better way of writing this
-            let handler = if pending_ints.contains(Interrupts::VBlank) {
-                mmu.int_flag.remove(Interrupts::VBlank);
-                0x40
-            }
-            else if pending_ints.contains(Interrupts::LcdStat) {
-                mmu.int_flag.remove(Interrupts::LcdStat);
-                0x48
-            }
-            else if pending_ints.contains(Interrupts::Timer) {
-                mmu.int_flag.remove(Interrupts::Timer);
-                0x50
-            }
-            else if pending_ints.contains(Interrupts::Serial) {
-                mmu.int_flag.remove(Interrupts::Serial);
-                0x58
-            }
-            else if pending_ints.contains(Interrupts::Joypad) {
-                mmu.int_flag.remove(Interrupts::Joypad);
-                0x60
-            }
-            else {
-                panic!("invalid interrupt value")
-            };
+                // TODO: there is probably a better way of writing this
+                let handler = if pending_ints.contains(Interrupts::VBlank) {
+                    mmu.int_flag.remove(Interrupts::VBlank);
+                    0x40
+                }
+                else if pending_ints.contains(Interrupts::LcdStat) {
+                    mmu.int_flag.remove(Interrupts::LcdStat);
+                    0x48
+                }
+                else if pending_ints.contains(Interrupts::Timer) {
+                    mmu.int_flag.remove(Interrupts::Timer);
+                    0x50
+                }
+                else if pending_ints.contains(Interrupts::Serial) {
+                    mmu.int_flag.remove(Interrupts::Serial);
+                    0x58
+                }
+                else if pending_ints.contains(Interrupts::Joypad) {
+                    mmu.int_flag.remove(Interrupts::Joypad);
+                    0x60
+                }
+                else {
+                    panic!("invalid interrupt value")
+                };
 
-            // TODO: could be more accurate cycle wise
-            // https://gbdev.io/pandocs/Interrupts.html#interrupt-handling
-            self.push_to_stack(self.regs.pc, mmu);
-            self.regs.pc = handler;
-            return 5;
+                // TODO: could be more accurate cycle wise
+                // https://gbdev.io/pandocs/Interrupts.html#interrupt-handling
+                self.push_to_stack(self.regs.pc, mmu);
+                self.regs.pc = handler;
+                return 5;
+            }
         }
 
         self.handle_opcode(mmu)
@@ -151,7 +155,7 @@ impl CPU {
         
                 {
                     let r8 = (opcode >> 3) & 0x07;
-                    const HL_POINT: u8 = 6;
+                    //const HL_POINT: u8 = 6;
         
                     match opcode & 0x7 {
                         0x4 => {
@@ -303,8 +307,8 @@ impl CPU {
             },
             0x1 => {
                 if opcode == 0x76 {
-                    // TODO: halt opcode
-                    todo!("Halt opcode");
+                    // TODO: halt bug + more accuracy
+                    self.halt_mode = true;
                 }
         
                 let source_reg = opcode & 0x07;

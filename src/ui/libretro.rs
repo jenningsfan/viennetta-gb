@@ -1,4 +1,4 @@
-use std::{env::JoinPathsError, ffi::{c_void, CString}};
+use std::ffi::{c_void, CString};
 
 use rust_libretro::{
     contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
