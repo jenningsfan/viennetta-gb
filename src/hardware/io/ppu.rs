@@ -69,7 +69,7 @@ impl From<u8> for Colour {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 struct Palettes {
     bg_palette: u8,
     obj1_palette: u8,
@@ -247,7 +247,7 @@ impl PPU {
     }
                                                                                        
     fn update_lcd(&mut self) {
-        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.vram, self.lcdc);
+        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.vram, self.lcdc, self.palettes);
         if let Some(colour) = colour {
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             self.line_x += 1;
@@ -257,6 +257,7 @@ impl PPU {
             self.mode = Mode::HBlank;
             self.status &= 0x7C | Mode::HBlank as u8;
             self.fifo.x_pos = 0;
+            self.line_x = 0;
         }
     }
 

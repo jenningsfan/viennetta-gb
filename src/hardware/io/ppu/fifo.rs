@@ -1,4 +1,4 @@
-use super::{PPU, LCDC};
+use super::{Palettes, LCDC, PPU};
 
 #[derive(Debug, Clone)]
 enum Palette {
@@ -88,7 +88,7 @@ impl FIFO {
         }
     }
 
-    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: [u8; 0x2000], lcdc: LCDC) -> Option<u8> {
+    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: [u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
         let fetcher_x = (((scroll_x / 8) + self.x_pos) & 0x1F) as usize;
         let fetcher_y = line_y.wrapping_add(scroll_y) as usize;
 
@@ -98,8 +98,9 @@ impl FIFO {
             FetchState::FetchDataHigh => self.last_low = self.get_tile_data_high(self.last_tile + (fetcher_y % 8) * 2, vram, lcdc),
             FetchState::Push => {
                 if self.bg_fifo.len() == 0 || self.bg_fifo.len() == 8 {
+                    //println!("pushed pixel to fifo");
                     for i in 0..8 {
-                        let i = 7 - i;
+                        //let i = 7 - i;
                         let colour = ((self.last_low >> i) & 1) << 1 | ((self.last_high >> i) & 1);
                         let palette = Palette::Background;
                         let pixel = FifoPixel {
@@ -123,8 +124,9 @@ impl FIFO {
             self.fetch_state = self.fetch_state.next();
         }
         
-        if let Some(pixel) = self.bg_fifo.pop() {
-            Some(pixel.colour)
+        if self.bg_fifo.len() > 8 {
+            //println!("pushed pixel to display");
+            Some((palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3)
         }
         else {
             None
