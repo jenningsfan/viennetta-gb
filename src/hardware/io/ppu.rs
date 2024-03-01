@@ -256,8 +256,8 @@ impl PPU {
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
             self.status &= 0x7C | Mode::HBlank as u8;
-            self.fifo.x_pos = 0;
             self.line_x = 0;
+            self.fifo = FIFO::default();
         }
     }
 

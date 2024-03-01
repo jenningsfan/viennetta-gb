@@ -55,7 +55,7 @@ impl FIFO {
             0x1800
         };
 
-        vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x] as usize * 16
+        vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x - 1] as usize * 16
     }
 
     pub fn get_tile_data_low(&mut self, tile: usize, vram: [u8; 0x2000], lcdc: LCDC) -> u8 {
@@ -71,6 +71,8 @@ impl FIFO {
                 vram[0x1000 + tile]
             }
         }
+        
+
     }
 
     pub fn get_tile_data_high(&mut self, tile: usize, vram: [u8; 0x2000], lcdc: LCDC) -> u8 {
@@ -95,7 +97,7 @@ impl FIFO {
         match self.fetch_state {
             FetchState::FetchTile => self.last_tile = self.get_tile_addr(fetcher_x, fetcher_y, vram, lcdc),
             FetchState::FetchDataLow => self.last_low = self.get_tile_data_low(self.last_tile + (fetcher_y % 8) * 2, vram, lcdc),
-            FetchState::FetchDataHigh => self.last_low = self.get_tile_data_high(self.last_tile + (fetcher_y % 8) * 2, vram, lcdc),
+            FetchState::FetchDataHigh => self.last_high = self.get_tile_data_high(self.last_tile + (fetcher_y % 8) * 2, vram, lcdc),
             FetchState::Push => {
                 if self.bg_fifo.len() == 0 || self.bg_fifo.len() == 8 {
                     //println!("pushed pixel to fifo");
@@ -126,6 +128,7 @@ impl FIFO {
         
         if self.bg_fifo.len() > 8 {
             //println!("pushed pixel to display");
+            //println!("{:02X}", palettes.bg_palette);
             Some((palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3)
         }
         else {
