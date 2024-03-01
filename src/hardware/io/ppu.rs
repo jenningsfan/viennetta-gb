@@ -120,7 +120,7 @@ pub struct PPU {
     win_x: u8,
     win_y: u8,
     palettes: Palettes,
-    objects_array: Vec<Object>,
+    sprite_buffer: Vec<Object>,
     fifo: FIFO,
     pub debug: bool,
 }
@@ -144,7 +144,7 @@ impl Default for PPU {
             win_x: 0,
             win_y: 0,
             palettes: Palettes::default(),
-            objects_array: vec![],
+            sprite_buffer: vec![],
             fifo: FIFO::default(),
             debug: false,
         }
@@ -253,6 +253,12 @@ impl PPU {
             self.line_x += 1;
         }
 
+        for sprite in &self.sprite_buffer {
+            if sprite.x <= self.line_x + 8 {
+                self.fifo.sprite_fetch(*sprite);
+            }
+        }
+
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
             self.status &= 0x7C | Mode::HBlank as u8;
@@ -327,7 +333,7 @@ impl PPU {
     fn enter_oam_scan(&mut self) {
         //println!("Change to OAM scan");
         self.mode = Mode::OAMScan;
-        self.objects_array = self.oam_search();
+        self.sprite_buffer = self.oam_search();
         self.status &= 0x7C | Mode::OAMScan as u8;
     }
 

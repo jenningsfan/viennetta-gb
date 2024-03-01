@@ -8,6 +8,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 bitflags = "2.4.2"
+derivative = "2.2.0"
 libc = "0.2.152"
 log = "0.4.20"
 
