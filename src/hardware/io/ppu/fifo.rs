@@ -157,9 +157,12 @@ pub struct FIFO {
 
 impl FIFO {
     pub fn sprite_fetch(&mut self, sprite: Object) {
+        //print!("sprites tart");
         self.bg_fetch_state = FetchState::Paused;
+        self.sprite_fetch_state = FetchState::FetchTile;
         self.current_sprite = Some(sprite);
         self.pixel_shifter_enabled = false;
+        self.state_cycles = 0;
     }
 
     pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: &[u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
@@ -185,11 +188,13 @@ impl FIFO {
             FetchState::FetchDataLow => self.sprite_fetcher.fetch_data_low((fetcher_y % 8) * 2, vram),
             FetchState::FetchDataHigh => self.sprite_fetcher.fetch_data_high((fetcher_y % 8) * 2, vram),
             FetchState::Push => {
+                //println!("sprite push");
                 self.sprite_fetcher.push_to_fifo(&mut self.sprite_fifo);
                 self.bg_fetch_state = FetchState::FetchTile;
                 self.sprite_fetch_state = FetchState::Paused;
                 self.current_sprite = None;
                 self.pixel_shifter_enabled = true;
+                self.state_cycles = 0;
             },
             FetchState::Paused => {},
         };
@@ -199,6 +204,7 @@ impl FIFO {
         if self.state_cycles == 2 {
             self.state_cycles = 0;
             self.bg_fetch_state = self.bg_fetch_state.next();
+            self.sprite_fetch_state = self.sprite_fetch_state.next();
         }
         
         if self.bg_fifo.len() > 8 && self.pixel_shifter_enabled {

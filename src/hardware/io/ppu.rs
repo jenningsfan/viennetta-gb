@@ -253,9 +253,11 @@ impl PPU {
             self.line_x += 1;
         }
 
-        for sprite in &self.sprite_buffer {
+        for (i, sprite) in self.sprite_buffer.iter().enumerate() {
             if sprite.x <= self.line_x + 8 {
                 self.fifo.sprite_fetch(*sprite);
+                self.sprite_buffer.remove(i);
+                break;
             }
         }
 
