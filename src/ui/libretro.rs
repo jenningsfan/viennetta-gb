@@ -86,8 +86,9 @@ impl Core for ViennettaCore {
 impl ViennettaCore {
     fn update_gb_joypad(&mut self, ctx: &mut RunContext) {
         let buttons = [
+            JoypadState::RIGHT, JoypadState::LEFT, JoypadState::UP, JoypadState::DOWN,
             JoypadState::A, JoypadState::B, JoypadState::SELECT, JoypadState::START,
-            JoypadState::RIGHT, JoypadState::LEFT, JoypadState::UP, JoypadState::DOWN
+            
         ];
         let joypad = ctx.get_joypad_state(0, 0);
         let mut gb_buttons = 0xFF;

@@ -12,7 +12,7 @@ enum Palette {
 pub struct FifoPixel {
     colour: u8,
     palette: Palette,
-    bg_priority: Option<u8>,
+    bg_priority: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -38,6 +38,7 @@ impl FetchState {
 
 #[derive(Default, Debug, Clone)]
 struct SpriteFetcher {
+    sprite: Object,
     last_tile: usize,
     last_high: u8,
     last_low: u8,
@@ -46,6 +47,7 @@ struct SpriteFetcher {
 impl SpriteFetcher {
     fn fetch_tile(&mut self, sprite: Object) {
         self.last_tile = sprite.tile as usize;
+        self.sprite = sprite;
     }
 
     fn fetch_data_low(&mut self, tile_offset: usize, vram: &[u8; 0x2000]) {
@@ -61,11 +63,14 @@ impl SpriteFetcher {
     fn push_to_fifo(&mut self, fifo: &mut Vec<FifoPixel>) {
         for i in 0..8 {
             let colour = ((self.last_low >> i) & 1) << 1 | ((self.last_high >> i) & 1);
-            let palette = Palette::Background;
+            let palette = match self.sprite.palette {
+                true => Palette::Sprite1,
+                false => Palette::Sprite2,
+            };
             let pixel = FifoPixel {
                 colour,
                 palette,
-                bg_priority: None,
+                bg_priority: Some(self.sprite.priority),
             };
             fifo.push(pixel);
         }
@@ -208,7 +213,26 @@ impl FIFO {
         }
         
         if self.bg_fifo.len() > 8 && self.pixel_shifter_enabled {
-            Some((palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3)
+            let mut colour = (palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3;
+            if self.sprite_fifo.len() > 1 {
+                let sprite = self.sprite_fifo.pop().unwrap();
+                let sprite_palette = match sprite.palette {
+                    Palette::Sprite1 => palettes.obj1_palette,
+                    Palette::Sprite2 => palettes.obj2_palette,
+                    Palette::Background => panic!("Sprites can't have bg palette"),
+                };
+                let priority = sprite.bg_priority.unwrap();
+                let sprite_colour = (sprite_palette >> (2 * sprite.colour)) & 0x3;
+
+                // if sprite colour == 0 then push bg pixel
+                // if bg-obj priority is 1 and bg is not 0 then push bg
+                // else push sprite
+
+                if sprite.colour != 0 && !(priority && colour != 0) {
+                    colour = sprite_colour;
+                }
+            }
+            Some(colour)
         }
         else {
             None

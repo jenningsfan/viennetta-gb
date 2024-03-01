@@ -94,10 +94,10 @@ impl Object {
             x: ((bytes >> 16) & 0xFF) as u8,
             y: (bytes >> 24) as u8,
             tile: ((bytes >> 8) & 0xFF) as u8,
-            priority: (flags >> 7) == 1,
-            x_flip: (flags >> 6) == 1,
-            y_flip: (flags >> 5) == 1,
-            palette: (flags >> 4) == 1,
+            priority: (flags >> 7) & 1 == 1,
+            x_flip: (flags >> 6) & 1 == 1,
+            y_flip: (flags >> 5) & 1 == 1,
+            palette: (flags >> 4) & 1 == 1,
         }
     }
 }

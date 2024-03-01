@@ -38,6 +38,7 @@ impl Joypad {
     }
 
     pub fn write(&mut self, value: u8) {
-        self.type_select = value & 0x3;
+        self.type_select = value & 0x30;
+        //println!("{value:02X}");
     }
 }
