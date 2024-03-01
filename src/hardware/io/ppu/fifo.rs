@@ -47,7 +47,7 @@ pub struct FIFO {
 }
 
 impl FIFO {
-    pub fn get_tile_addr(&mut self, fetcher_x: usize, fetcher_y: usize, vram: [u8; 0x2000], lcdc: LCDC) -> usize {
+    pub fn get_tile_addr(&mut self, fetcher_x: usize, fetcher_y: usize, vram: &[u8; 0x2000], lcdc: LCDC) -> usize {
         let tilemap = if lcdc.contains(LCDC::BgTileMap) {
             0x1C00
         }
@@ -58,7 +58,7 @@ impl FIFO {
         vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x - 1] as usize * 16
     }
 
-    pub fn get_tile_data_low(&mut self, tile: usize, vram: [u8; 0x2000], lcdc: LCDC) -> u8 {
+    pub fn get_tile_data_low(&mut self, tile: usize, vram: &[u8; 0x2000], lcdc: LCDC) -> u8 {
         if lcdc.contains(LCDC::BgTileData) {
             vram[tile]
         }
@@ -75,7 +75,7 @@ impl FIFO {
 
     }
 
-    pub fn get_tile_data_high(&mut self, tile: usize, vram: [u8; 0x2000], lcdc: LCDC) -> u8 {
+    pub fn get_tile_data_high(&mut self, tile: usize, vram: &[u8; 0x2000], lcdc: LCDC) -> u8 {
         if lcdc.contains(LCDC::BgTileData) {
             vram[tile + 1]
         }
@@ -90,7 +90,7 @@ impl FIFO {
         }
     }
 
-    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: [u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
+    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: &[u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
         let fetcher_x = (((scroll_x / 8) + self.x_pos) & 0x1F) as usize;
         let fetcher_y = line_y.wrapping_add(scroll_y) as usize;
 

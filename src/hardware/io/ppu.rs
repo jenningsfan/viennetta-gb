@@ -247,7 +247,7 @@ impl PPU {
     }
                                                                                        
     fn update_lcd(&mut self) {
-        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.vram, self.lcdc, self.palettes);
+        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, &self.vram, self.lcdc, self.palettes);
         if let Some(colour) = colour {
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             self.line_x += 1;
