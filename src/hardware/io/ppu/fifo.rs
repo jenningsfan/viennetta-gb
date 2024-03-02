@@ -1,12 +1,5 @@
-use super::{Palettes, LCDC, Object};
+use super::{Palettes, LCDC, Object, Palette};
 use derivative::Derivative;
-
-#[derive(Debug, Clone)]
-enum Palette {
-    Background,
-    Sprite1,
-    Sprite2,
-}
 
 #[derive(Debug, Clone)]
 pub struct FifoPixel {
@@ -50,23 +43,31 @@ impl SpriteFetcher {
         self.sprite = sprite;
     }
 
-    fn fetch_data_low(&mut self, tile_offset: usize, vram: &[u8; 0x2000]) {
+    fn fetch_data_low(&mut self, mut tile_offset: usize, vram: &[u8; 0x2000]) {
+        if self.sprite.y_flip {
+            tile_offset = 15 - tile_offset;
+        }
+
         let tile = self.last_tile * 16 + tile_offset;
         self.last_low = vram[tile];
     }
 
-    fn fetch_data_high(&mut self, tile_offset: usize, vram: &[u8; 0x2000]) {
+    fn fetch_data_high(&mut self, mut tile_offset: usize, vram: &[u8; 0x2000]) {
+        if self.sprite.y_flip {
+            tile_offset = 15 - tile_offset;
+        }
+
         let tile = self.last_tile * 16 + tile_offset;
-        self.last_low = vram[tile + 1];
+        self.last_high = vram[tile + 1];
     }
 
     fn push_to_fifo(&mut self, fifo: &mut Vec<FifoPixel>) {
-        for i in 0..8 {
+        for mut i in 0..8 {
+            if self.sprite.x_flip {
+                i = 7 - i;
+            }
             let colour = ((self.last_low >> i) & 1) << 1 | ((self.last_high >> i) & 1);
-            let palette = match self.sprite.palette {
-                true => Palette::Sprite1,
-                false => Palette::Sprite2,
-            };
+            let palette = self.sprite.palette;
             let pixel = FifoPixel {
                 colour,
                 palette,
@@ -94,7 +95,6 @@ impl BgFetcher {
         };
 
         self.last_tile = vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x - 1] as usize;
-        //self.last_tile = 0x48;
     }
 
     fn fetch_data_low(&mut self, tile_offset: usize, vram: &[u8; 0x2000], lcdc: LCDC) {
@@ -104,7 +104,7 @@ impl BgFetcher {
         }
         else {
             if self.last_tile > 127 {
-                let tile = ((!(self.last_tile as u8)+ 1) as usize) * 16 + tile_offset;
+                let tile = ((!(self.last_tile as u8) + 1) as usize) * 16 + tile_offset;
                 vram[0x800 + tile]
             }
             else {
@@ -163,7 +163,6 @@ pub struct FIFO {
 
 impl FIFO {
     pub fn sprite_fetch(&mut self, sprite: Object) {
-        //print!("sprites tart");
         self.bg_fetch_state = FetchState::Paused;
         self.sprite_fetch_state = FetchState::FetchTile;
         self.current_sprite = Some(sprite);
@@ -195,7 +194,6 @@ impl FIFO {
             FetchState::FetchDataLow => self.sprite_fetcher.fetch_data_low((fetcher_y % 8) * 2, vram),
             FetchState::FetchDataHigh => self.sprite_fetcher.fetch_data_high((fetcher_y % 8) * 2, vram),
             FetchState::Push => {
-                //println!("sprite push");
                 self.sprite_fetcher.push_to_fifo(&mut self.sprite_fifo);
                 self.bg_fetch_state = FetchState::FetchTile;
                 self.sprite_fetch_state = FetchState::Paused;
@@ -216,15 +214,15 @@ impl FIFO {
         
         if self.bg_fifo.len() > 8 && self.pixel_shifter_enabled {
             let mut colour = (palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3;
+
             if self.sprite_fifo.len() > 0 && lcdc.contains(LCDC::ObjEnable) {
-                //println!("push sprite pixel to display");
                 let sprite = self.sprite_fifo.pop().unwrap();
                 let sprite_palette = match sprite.palette {
+                    Palette::Sprite0 => palettes.obj0_palette,
                     Palette::Sprite1 => palettes.obj1_palette,
-                    Palette::Sprite2 => palettes.obj2_palette,
                     Palette::Background => panic!("Sprites can't have bg palette"),
                 };
-                //dbg!(sprite_palette);
+
                 let priority = sprite.bg_priority.unwrap();
                 let sprite_colour = (sprite_palette >> (2 * sprite.colour)) & 0x3;
 
@@ -233,7 +231,6 @@ impl FIFO {
                 // else push sprite
 
                 if sprite.colour != 0 && !(priority && colour != 0) {
-                    //println!("push sprite pixel to display");
                     colour = sprite_colour;
                 }
             }

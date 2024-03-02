@@ -15,7 +15,7 @@ const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
 const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
 
-const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
+const COLOURS: [u16; 5] = [0xFFFF, 0xB573, 0x6B4B, 0x0000, 0xf800];
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -70,10 +70,17 @@ impl From<u8> for Colour {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
+enum Palette {
+    #[default] Background,
+    Sprite0,
+    Sprite1,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
 struct Palettes {
     bg_palette: u8,
+    obj0_palette: u8,
     obj1_palette: u8,
-    obj2_palette: u8,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -84,7 +91,7 @@ struct Object {
     priority: bool,
     x_flip: bool,
     y_flip: bool,
-    palette: bool,
+    palette: Palette,
 }
 
 impl Object {
@@ -97,7 +104,11 @@ impl Object {
             priority: (flags >> 7) & 1 == 1,
             x_flip: (flags >> 6) & 1 == 1,
             y_flip: (flags >> 5) & 1 == 1,
-            palette: (flags >> 4) & 1 == 1,
+            palette: match (flags >> 4) & 1 {
+                0 => Palette::Sprite0,
+                1 => Palette::Sprite1,
+                _ => panic!("not possible"),
+            },
         }
     }
 }
@@ -195,8 +206,8 @@ impl PPU {
             0xFF44 => self.line_y,
             0xFF45 => self.line_compare,
             0xFF47 => self.palettes.bg_palette,
-            0xFF48 => self.palettes.obj1_palette,
-            0xFF49 => self.palettes.obj2_palette,
+            0xFF48 => self.palettes.obj0_palette,
+            0xFF49 => self.palettes.obj1_palette,
             0xFF4A => self.win_y,
             0xFF4B => self.win_x,
             _ => 0,
@@ -211,8 +222,8 @@ impl PPU {
             0xFF43 => self.scroll_x = value,
             0xFF45 => self.line_compare = value,
             0xFF47 => self.palettes.bg_palette = value,
-            0xFF48 => self.palettes.obj1_palette = value,
-            0xFF49 => self.palettes.obj2_palette = value,
+            0xFF48 => self.palettes.obj0_palette = value,
+            0xFF49 => self.palettes.obj1_palette = value,
             0xFF4A => self.win_y = value,
             0xFF4B => self.win_x = value,
             _ => {},
