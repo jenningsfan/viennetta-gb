@@ -6,10 +6,13 @@ pub struct Timer {
     counter: u8,
     modulo: u8,
     control: u8,
+    intern_counter: u16,
 }
 
 impl Timer {
     pub fn run_cycles(&mut self, cycles: u8) -> Interrupts {
+        let mut int = false;
+
         for _ in 0..cycles {
             self.div = self.div.wrapping_add(1);
 
@@ -22,17 +25,24 @@ impl Timer {
                     _ => panic!("impossible")
                 };
 
-                if self.div % tima_cycles == 0 {
+                while self.intern_counter >= tima_cycles {
+                    self.intern_counter -= tima_cycles;
                     self.counter = self.counter.wrapping_add(1);
+
                     if self.counter == 0 {  // i.e. overflown
                         self.counter = self.modulo;
-                        return Interrupts::Timer;
+                        int = true;
                     }
                 }
             }
         }
 
-        Interrupts::empty()
+        if int {
+            Interrupts::Timer
+        }
+        else {
+            Interrupts::empty()
+        }
     }
 
     pub fn read_io(&self, reg: u16) -> u8 {

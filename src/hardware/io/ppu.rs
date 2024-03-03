@@ -363,11 +363,7 @@ impl PPU {
 
         let lyc = if self.line_y == self.line_compare {
             self.status |= StatReg::LycLy as u8;
-            //println!("lines the same");
             if self.status & StatReg::LycInt as u8 == StatReg::LycInt as u8 {
-                if !old_stat_flag {
-                    println!("LYC=LY Int at {}", self.line_y);
-                }
                 true
             }
             else {
