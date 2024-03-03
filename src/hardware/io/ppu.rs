@@ -257,16 +257,11 @@ impl PPU {
             self.scheduled_stat_update = false;
             interrupts |= self.update_stat();
         }
+        //interrupts |= self.update_stat();
         interrupts
     }
                                                                                        
     fn update_lcd(&mut self) -> Interrupts {
-        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, &self.vram, self.lcdc, self.palettes);
-        if let Some(colour) = colour {
-            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
-            self.line_x += 1;
-        }
-
         for (i, sprite) in self.sprite_buffer.iter().enumerate() {
             if sprite.x <= self.line_x + 8 {
                 self.fifo.sprite_fetch(*sprite);
@@ -274,6 +269,13 @@ impl PPU {
                 break;
             }
         }
+
+        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, &self.vram, self.lcdc, self.palettes);
+        if let Some(colour) = colour {
+            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
+            self.line_x += 1;
+        }
+
 
         if self.line_x == 160 {
             self.mode = Mode::HBlank;

@@ -104,8 +104,7 @@ impl BgFetcher {
         }
         else {
             if self.last_tile > 127 {
-                let tile = ((!(self.last_tile as u8) + 1) as usize) * 16 + tile_offset;
-                vram[0x800 + tile]
+                vram[tile]
             }
             else {
                 vram[0x1000 + tile]
@@ -120,8 +119,7 @@ impl BgFetcher {
         }
         else {
             if self.last_tile > 127 {
-                let tile = ((!(self.last_tile as u8)+ 1) as usize) * 16 + tile_offset;
-                vram[0x800 + tile + 1]
+                vram[tile + 1]
             }
             else {
                 vram[0x1000 + tile + 1]
