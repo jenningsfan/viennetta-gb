@@ -214,7 +214,12 @@ impl FIFO {
         
         if self.bg_fifo.len() > 8 && self.pixel_shifter_enabled {
             let mut colour = (palettes.bg_palette >> (2 * self.bg_fifo.pop().unwrap().colour)) & 0x3;
-
+            
+            if !lcdc.contains(LCDC::BgWinEnable) {
+                //println!("bg reset");
+                colour = 0;
+            }
+            
             if self.sprite_fifo.len() > 0 && lcdc.contains(LCDC::ObjEnable) {
                 let sprite = self.sprite_fifo.pop().unwrap();
                 let sprite_palette = match sprite.palette {

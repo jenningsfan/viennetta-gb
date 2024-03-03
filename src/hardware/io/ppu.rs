@@ -19,7 +19,7 @@ const COLOURS: [u16; 5] = [0xFFFF, 0xB573, 0x6B4B, 0x0000, 0xf800];
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
-    struct LCDC: u8 {
+    pub struct LCDC: u8 {
         const PpuEnable = 1 << 7;
         const WinTileMap = 1 << 6;
         const WinEnable = 1 << 5;
@@ -122,9 +122,9 @@ pub struct PPU {
     pub cycles_line: u16,
     vram: [u8; 0x2000],
     oam: [u8; 0x100],
-    lcdc: LCDC,
-    line_compare: u8,
-    status: u8,
+    pub lcdc: LCDC,
+    pub line_compare: u8,
+    pub status: u8,
     stat_flag: bool,
     scroll_x: u8,
     scroll_y: u8,
@@ -217,7 +217,7 @@ impl PPU {
     pub fn write_io(&mut self, address: u16, value: u8) {
         match address {
             0xFF40 => self.lcdc = LCDC::from_bits(value).unwrap(),
-            0xFF41 => self.status = value & 0x7C,
+            0xFF41 => self.status = (value & 0xFC) | 0x80,
             0xFF42 => self.scroll_y = value,
             0xFF43 => self.scroll_x = value,
             0xFF45 => self.line_compare = value,
@@ -248,11 +248,11 @@ impl PPU {
     fn run_cycle(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
-        if self.mode == Mode::Drawing {
-            self.update_lcd();
-        }
         if self.update_stat() {
             interrupts |= Interrupts::LcdStat;
+        }
+        if self.mode == Mode::Drawing {
+            self.update_lcd();
         }
         interrupts
     }
@@ -274,7 +274,7 @@ impl PPU {
 
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
-            self.status &= 0x7C | Mode::HBlank as u8;
+            self.status &= 0xFC | Mode::HBlank as u8;
             self.line_x = 0;
             self.fifo = FIFO::default();
         }
@@ -314,7 +314,7 @@ impl PPU {
             self.fifo.x_pos = 0;
             self.line_x = 0;
             self.mode = Mode::Drawing;
-            self.status &= 0x7C | Mode::Drawing as u8;
+            self.status &= 0xFC | Mode::Drawing as u8;
             //println!("Change to drawing");
             //dbg!(self.line_y);
         }
@@ -331,7 +331,7 @@ impl PPU {
             else if self.line_y == VBLANK_START {
                 //println!("VBLANK");
                 self.mode = Mode::VBlank;
-                self.status &= 0x7C | Mode::VBlank as u8;
+                self.status &= 0xFC | Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
             }
             
@@ -347,31 +347,38 @@ impl PPU {
         //println!("Change to OAM scan");
         self.mode = Mode::OAMScan;
         self.sprite_buffer = self.oam_search();
-        self.status &= 0x7C | Mode::OAMScan as u8;
+        self.status &= 0xFC | Mode::OAMScan as u8;
     }
 
     fn update_stat(&mut self) -> bool {
         let old_stat_flag = self.stat_flag;
-        if self.line_y == self.line_compare {
-            self.status |= StatReg::LycLy as u8;
 
-            if self.status | StatReg::LycInt as u8 == StatReg::LycInt as u8 {
-                self.stat_flag = true;
+        let lyc = if self.line_y == self.line_compare {
+            self.status |= StatReg::LycLy as u8;
+            //println!("lines the same");
+            if self.status & StatReg::LycInt as u8 == StatReg::LycInt as u8 {
+                if !old_stat_flag {
+                    println!("LYC=LY Int at {}", self.line_y);
+                }
+                true
+            }
+            else {
+                false
             }
         }
+        else {
+            self.status &= !(StatReg::LycLy as u8);
+            false
+        };
+        let hblank = self.status & StatReg::HBlankInt as u8 == StatReg::HBlankInt as u8 && self.mode == Mode::HBlank;
+        let vblank = self.status & StatReg::VBlankInt as u8 == StatReg::VBlankInt as u8 && self.mode == Mode::VBlank;
+        let oam = self.status & StatReg::OamInt as u8 == StatReg::OamInt as u8 && self.mode == Mode::OAMScan;
 
-        if self.status | StatReg::HBlankInt as u8 == StatReg::HBlankInt as u8 && self.mode == Mode::HBlank {
-            self.stat_flag = true;
-        }
-
-        if self.status | StatReg::VBlankInt as u8 == StatReg::VBlankInt as u8 && self.mode == Mode::VBlank {
-            self.stat_flag = true;
-        }
-
-        if self.status | StatReg::OamInt as u8 == StatReg::OamInt as u8 && self.mode == Mode::OAMScan {
-            self.stat_flag = true;
-        }
+        self.stat_flag = lyc || hblank || vblank || oam;
 
         !old_stat_flag && self.stat_flag
+
+        // BUG IS THAT LYC=LY should only be checked at start of scanline and mode ones when entered
+        // NOT EVERY CYCLE
     }
 }

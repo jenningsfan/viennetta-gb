@@ -15,8 +15,9 @@ fn main() {
     let mut blaargs = false;
 
     if args.contains(&"--debugger".to_string()) {
-        stepping = true;
+        //stepping = true;
         debugging = true;
+        breakpoint.insert(0x100);
     }
 
     if args.contains(&"--blaargs".to_string()) {
@@ -62,7 +63,22 @@ fn main() {
                         println!();
                     }
                     "ppu" => {
-                        gameboy.mmu.ppu.debug = true;
+                        let stat = gameboy.mmu.ppu.status;
+                        println!("LCDC: {:02X}", gameboy.mmu.ppu.lcdc);
+                        println!("STAT: {:02X}", stat);
+                        println!("LY: {:02X}", gameboy.mmu.ppu.line_y);
+                        println!("LYC: {:02X}", gameboy.mmu.ppu.line_compare);
+                        println!("line cycles: {}", gameboy.mmu.ppu.cycles_line);
+
+                        let mode = match stat & 0x3 {
+                            0 => "H-Blank",
+                            1 => "V-Blank",
+                            2 => "OAM Scan",
+                            3 => "Drawing",
+                            _ => panic!("impossible"),
+                        };
+
+                        println!("Mode: {mode}");
                     }
                     _ => println!("Not a valid command"),
                 }
