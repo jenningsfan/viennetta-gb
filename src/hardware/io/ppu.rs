@@ -134,6 +134,7 @@ pub struct PPU {
     sprite_buffer: Vec<Object>,
     fifo: FIFO,
     pub debug: bool,
+    scheduled_stat_update: bool,
 }
 
 impl Default for PPU {
@@ -158,6 +159,7 @@ impl Default for PPU {
             sprite_buffer: vec![],
             fifo: FIFO::default(),
             debug: false,
+            scheduled_stat_update: false,
         }
     }
 }
@@ -217,7 +219,7 @@ impl PPU {
     pub fn write_io(&mut self, address: u16, value: u8) {
         match address {
             0xFF40 => self.lcdc = LCDC::from_bits(value).unwrap(),
-            0xFF41 => self.status = (value & 0xFC) | 0x80,
+            0xFF41 => { self.scheduled_stat_update = true; self.status = (value & 0xFC) | 0x80 },
             0xFF42 => self.scroll_y = value,
             0xFF43 => self.scroll_x = value,
             0xFF45 => self.line_compare = value,
@@ -248,16 +250,17 @@ impl PPU {
     fn run_cycle(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
-        if self.update_stat() {
-            interrupts |= Interrupts::LcdStat;
-        }
         if self.mode == Mode::Drawing {
-            self.update_lcd();
+            interrupts |= self.update_lcd();
+        }
+        if self.scheduled_stat_update {
+            self.scheduled_stat_update = false;
+            interrupts |= self.update_stat();
         }
         interrupts
     }
                                                                                        
-    fn update_lcd(&mut self) {
+    fn update_lcd(&mut self) -> Interrupts {
         let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, &self.vram, self.lcdc, self.palettes);
         if let Some(colour) = colour {
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
@@ -277,7 +280,10 @@ impl PPU {
             self.status &= 0xFC | Mode::HBlank as u8;
             self.line_x = 0;
             self.fifo = FIFO::default();
+
+            return self.update_stat();
         }
+        Interrupts::empty()
     }
 
     fn oam_search(&self) -> Vec<Object> {
@@ -338,6 +344,8 @@ impl PPU {
             if self.mode != Mode::VBlank {
                 self.enter_oam_scan();
             }
+
+            interrupts |= self.update_stat();
         }
         //dbg!(self.mode);
         interrupts
@@ -350,7 +358,7 @@ impl PPU {
         self.status &= 0xFC | Mode::OAMScan as u8;
     }
 
-    fn update_stat(&mut self) -> bool {
+    fn update_stat(&mut self) -> Interrupts {
         let old_stat_flag = self.stat_flag;
 
         let lyc = if self.line_y == self.line_compare {
@@ -376,7 +384,12 @@ impl PPU {
 
         self.stat_flag = lyc || hblank || vblank || oam;
 
-        !old_stat_flag && self.stat_flag
+        if !old_stat_flag && self.stat_flag {
+            Interrupts::LcdStat
+        }
+        else {
+            Interrupts::empty()
+        }
 
         // BUG IS THAT LYC=LY should only be checked at start of scanline and mode ones when entered
         // NOT EVERY CYCLE
