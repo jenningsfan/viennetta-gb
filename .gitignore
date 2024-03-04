@@ -1,7 +1,6 @@
 /target
 blank.gb
 blank.txt
-Tetris (World) (Rev 1).gb
 tarpaulin-report.html
 cpu_instrs/source
 instr_timing/source
@@ -13,8 +12,8 @@ daa.gb
 03-working-output.txt
 08-working-output.txt
 03-broken.txt
-Dr. Mario (World) (Rev 1).gb
 perf.data
 perf.data.old
 pocket.gb
 /mooneye_tests
+/roms

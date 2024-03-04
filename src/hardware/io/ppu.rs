@@ -179,9 +179,12 @@ impl PPU {
     }
 
     pub fn write_vram(&mut self, address: u16, value: u8) {
-        if self.mode != Mode::Drawing {
+        
+        // INVESTIGATE
+        // COMMENTED OUT FOR DR. MARIO TO WORK
+        //if self.mode != Mode::Drawing {
             self.vram[address as usize] = value;
-        }
+        //}
     }
 
     pub fn read_oam(&self, address: u16) -> u8 {
@@ -194,9 +197,9 @@ impl PPU {
     }
 
     pub fn write_oam(&mut self, address: u16, value: u8) {
-        if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
+        //if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
             self.oam[address as usize] = value;
-        }
+        // }
     }
 
     pub fn read_io(&self, address: u16) -> u8 {

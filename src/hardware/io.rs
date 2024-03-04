@@ -106,7 +106,8 @@ pub struct MMU {
     pub int_enable: Interrupts,
     pub int_flag: Interrupts,
     boot_rom_enable: u8,
-    dma_transfer_offset: Option<u16>, 
+    dma_transfer_offset: Option<u16>,
+    last_dma_value: u8,
 }
 
 impl MMU {
@@ -122,6 +123,7 @@ impl MMU {
             int_flag: Interrupts::empty(),
             boot_rom_enable: 0,
             dma_transfer_offset: None,
+            last_dma_value: 0,
         }
     }
 }
@@ -163,6 +165,7 @@ impl MMU {
             0xFF01 => self.serial.read_data(),                                  // Serial Data
             0xFF02 => self.serial.read_control(),                               // Serial Control
             0xFF04..=0xFF07 => self.timer.read_io(address),                 // Timer
+            0xFF46 => self.last_dma_value,                                  // OAM DMA
             0xFF40..=0xFF4B => self.ppu.read_io(address),                       // PPU
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
@@ -195,6 +198,7 @@ impl MMU {
     }
 
     fn oam_dma(&mut self, address: u8) {
+        self.last_dma_value = address;
         self.dma_transfer_offset = Some((address as u16) << 8);
     }
 }
