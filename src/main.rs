@@ -78,7 +78,7 @@ fn main() {
                             _ => panic!("impossible"),
                         };
 
-                        println!("Mode: {mode}");
+                        println!("Mode: {mode} ({})", stat & 0x3);
                     }
                     _ => println!("Not a valid command"),
                 }

@@ -11,6 +11,7 @@
             "cargo": {
                 "args": [
                     "build",
+                    //"--release",
                     "--bin=viennetta_gb",
                     "--package=viennetta_gb"
                 ],
@@ -19,7 +20,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["./cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", "--debugger"],
+            "args": ["./dmg-acid2.gb", "--debugger"],
             "cwd": "${workspaceFolder}"
         },
         {

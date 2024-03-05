@@ -179,7 +179,6 @@ impl PPU {
     }
 
     pub fn write_vram(&mut self, address: u16, value: u8) {
-        
         // INVESTIGATE
         // COMMENTED OUT FOR DR. MARIO TO WORK
         //if self.mode != Mode::Drawing {
@@ -197,7 +196,9 @@ impl PPU {
     }
 
     pub fn write_oam(&mut self, address: u16, value: u8) {
-        //if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
+        // INVESTIGATE
+        // COMMENTED OUT FOR TETRIS TO WORK
+        // if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
             self.oam[address as usize] = value;
         // }
     }
@@ -253,14 +254,14 @@ impl PPU {
     fn run_cycle(&mut self) -> Interrupts {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
+        interrupts |= self.update_stat();
         if self.mode == Mode::Drawing {
             interrupts |= self.update_lcd();
         }
-        if self.scheduled_stat_update {
-            self.scheduled_stat_update = false;
-            interrupts |= self.update_stat();
-        }
-        //interrupts |= self.update_stat();
+        // if self.scheduled_stat_update {
+        //     self.scheduled_stat_update = false;
+        //     interrupts |= self.update_stat();
+        // }
         interrupts
     }
                                                                                        
@@ -282,11 +283,12 @@ impl PPU {
 
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
-            self.status &= 0xFC | Mode::HBlank as u8;
+            self.status &= 0xFC;
+            self.status |= Mode::HBlank as u8;
             self.line_x = 0;
             self.fifo = FIFO::default();
 
-            return self.update_stat();
+            //return self.update_stat();
         }
         Interrupts::empty()
     }
@@ -317,17 +319,12 @@ impl PPU {
         let mut interrupts = Interrupts::empty();
         
         self.cycles_line += 1;
-        // if self.cycles_line == LINE_LEN {
-        //     self.cycles_line = 0;
-        //     println!("New line new line new linety line")
-        // }
         if self.cycles_line == DRAW_START && self.mode != Mode::VBlank {
             self.fifo.x_pos = 0;
             self.line_x = 0;
             self.mode = Mode::Drawing;
-            self.status &= 0xFC | Mode::Drawing as u8;
-            //println!("Change to drawing");
-            //dbg!(self.line_y);
+            self.status &= 0xFC;
+            self.status |= Mode::Drawing as u8;
         }
         else if self.cycles_line == LINE_LEN {
             self.line_y += 1;
@@ -335,32 +332,32 @@ impl PPU {
             self.line_x = 0;
             
             if self.line_y == FRAME_SCANLINES {
-                //println!("reset");
                 self.line_y = 0;
                 self.mode = Mode::OAMScan;
+                self.status &= 0xFC;
+                self.status |= Mode::OAMScan as u8;
             }
             else if self.line_y == VBLANK_START {
-                //println!("VBLANK");
                 self.mode = Mode::VBlank;
-                self.status &= 0xFC | Mode::VBlank as u8;
+                self.status &= 0xFC;
+                self.status |= Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
             }
             
+            
+
             if self.mode != Mode::VBlank {
                 self.enter_oam_scan();
             }
-
-            interrupts |= self.update_stat();
         }
-        //dbg!(self.mode);
         interrupts
     }
 
     fn enter_oam_scan(&mut self) {
-        //println!("Change to OAM scan");
         self.mode = Mode::OAMScan;
         self.sprite_buffer = self.oam_search();
-        self.status &= 0xFC | Mode::OAMScan as u8;
+        self.status &= 0xFC;
+        self.status |= Mode::OAMScan as u8;
     }
 
     fn update_stat(&mut self) -> Interrupts {

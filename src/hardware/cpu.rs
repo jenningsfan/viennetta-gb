@@ -61,11 +61,17 @@ impl CPU {
                 // https://gbdev.io/pandocs/Interrupts.html#interrupt-handling
                 self.push_to_stack(self.regs.pc, mmu);
                 self.regs.pc = handler;
+                //println!("going to {handler:02X}");
                 return 5;
             }
         }
 
-        self.handle_opcode(mmu)
+        if !self.halt_mode {
+            self.handle_opcode(mmu)
+        }
+        else {
+            1
+        }
     }
 
     pub fn handle_opcode(&mut self, mmu: &mut MMU) -> u8 {
