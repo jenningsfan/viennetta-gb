@@ -83,48 +83,54 @@ struct BgFetcher {
     last_tile: usize,
     last_high: u8,
     last_low: u8,
+    fetching_window: bool,
+    pub win_line_counter: usize,
+}
+
+impl BgFetcher {
+    pub fn new(window: bool) -> Self {
+        Self {
+            last_tile: 0,
+            last_high: 0,
+            last_low: 0,
+            win_line_counter: 0,
+            fetching_window: window,
+        }
+    }
 }
 
 impl BgFetcher {
     fn fetch_tile(&mut self, fetcher_x: usize, fetcher_y: usize, vram: &[u8; 0x2000], lcdc: LCDC) {
-        let tilemap = if lcdc.contains(LCDC::BgTileMap) {
-            0x1C00
+        let tilemap = if self.fetching_window {
+            if lcdc.contains(LCDC::WinTileMap) { 0x1C00 } else { 0x1800 }
+        } else {
+            if lcdc.contains(LCDC::BgTileMap) { 0x1C00 } else { 0x1800 }
+        };
+        
+        self.last_tile = vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x - 1] as usize;
+    }
+    
+    fn get_tile_fetch_index(&self, tile_offset: usize, lcdc: LCDC) -> usize {
+        let tile = self.last_tile * 16 + tile_offset;
+        if lcdc.contains(LCDC::BgTileData) {
+            tile
         }
         else {
-            0x1800
-        };
-
-        self.last_tile = vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x - 1] as usize;
+            if self.last_tile > 127 {
+                tile
+            }
+            else {
+                0x1000 + tile
+            }
+        }
     }
 
     fn fetch_data_low(&mut self, tile_offset: usize, vram: &[u8; 0x2000], lcdc: LCDC) {
-        let tile = self.last_tile * 16 + tile_offset;
-        self.last_low = if lcdc.contains(LCDC::BgTileData) {
-            vram[tile]
-        }
-        else {
-            if self.last_tile > 127 {
-                vram[tile]
-            }
-            else {
-                vram[0x1000 + tile]
-            }
-        };
+        self.last_low = vram[self.get_tile_fetch_index(tile_offset, lcdc)];
     }
 
     fn fetch_data_high(&mut self, tile_offset: usize, vram: &[u8; 0x2000], lcdc: LCDC) {
-        let tile = self.last_tile * 16 + tile_offset;
-        self.last_high = if lcdc.contains(LCDC::BgTileData) {
-            vram[tile + 1]
-        }
-        else {
-            if self.last_tile > 127 {
-                vram[tile + 1]
-            }
-            else {
-                vram[0x1000 + tile + 1]
-            }
-        };
+        self.last_high = vram[self.get_tile_fetch_index(tile_offset, lcdc) + 1];
     }
 
     fn push_to_fifo(&mut self, fifo: &mut Vec<FifoPixel>) {
@@ -169,14 +175,22 @@ impl FIFO {
         self.sprite_fifo = vec![];
     }
 
-    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, vram: &[u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
+    pub fn run_cycle(&mut self, scroll_x: u8, scroll_y: u8, line_y: u8, line_x: u8, win_x: u8, win_trigged: bool, vram: &[u8; 0x2000], lcdc: LCDC, palettes: Palettes) -> Option<u8> {
         let fetcher_x = (((scroll_x / 8) + self.x_pos) & 0x1F) as usize;
         let fetcher_y = line_y.wrapping_add(scroll_y) as usize;
+        let fetcher_offset = if !self.bg_fetcher.fetching_window {
+            (fetcher_y % 8) * 2
+        }
+        else {
+            (self.bg_fetcher.win_line_counter % 8) * 2
+        };
+
+        //let fetcher_offset = (fetcher_y % 8) * 2;
 
         match self.bg_fetch_state {
             FetchState::FetchTile => self.bg_fetcher.fetch_tile(fetcher_x, fetcher_y, vram, lcdc),
-            FetchState::FetchDataLow => self.bg_fetcher.fetch_data_low((fetcher_y % 8) * 2, vram, lcdc),
-            FetchState::FetchDataHigh => self.bg_fetcher.fetch_data_high((fetcher_y % 8) * 2, vram, lcdc),
+            FetchState::FetchDataLow => self.bg_fetcher.fetch_data_low(fetcher_offset, vram, lcdc),
+            FetchState::FetchDataHigh => self.bg_fetcher.fetch_data_high(fetcher_offset, vram, lcdc),
             FetchState::Push => {
                 if self.bg_fifo.len() == 0 || self.bg_fifo.len() == 8 {
                     self.bg_fetcher.push_to_fifo(&mut self.bg_fifo);
@@ -189,8 +203,8 @@ impl FIFO {
 
         match self.sprite_fetch_state {
             FetchState::FetchTile => self.sprite_fetcher.fetch_tile(self.current_sprite.unwrap()),
-            FetchState::FetchDataLow => self.sprite_fetcher.fetch_data_low((fetcher_y % 8) * 2, vram),
-            FetchState::FetchDataHigh => self.sprite_fetcher.fetch_data_high((fetcher_y % 8) * 2, vram),
+            FetchState::FetchDataLow => self.sprite_fetcher.fetch_data_low(fetcher_offset, vram),
+            FetchState::FetchDataHigh => self.sprite_fetcher.fetch_data_high(fetcher_offset, vram),
             FetchState::Push => {
                 self.sprite_fetcher.push_to_fifo(&mut self.sprite_fifo);
                 self.bg_fetch_state = FetchState::FetchTile;
@@ -237,6 +251,13 @@ impl FIFO {
                     colour = sprite_colour;
                 }
             }
+
+            if lcdc.contains(LCDC::WinEnable) && win_trigged && line_x >= win_x - 7 && !self.bg_fetcher.fetching_window {
+                //println!("window mc window");
+                self.bg_fetcher = BgFetcher::new(true);
+                self.bg_fifo = vec![];
+            }
+
             Some(colour)
         }
         else {

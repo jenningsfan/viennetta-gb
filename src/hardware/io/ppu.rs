@@ -135,6 +135,7 @@ pub struct PPU {
     fifo: FIFO,
     pub debug: bool,
     scheduled_stat_update: bool,
+    window_triggered: bool,
 }
 
 impl Default for PPU {
@@ -160,6 +161,7 @@ impl Default for PPU {
             fifo: FIFO::default(),
             debug: false,
             scheduled_stat_update: false,
+            window_triggered: false,
         }
     }
 }
@@ -274,12 +276,11 @@ impl PPU {
             }
         }
 
-        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, &self.vram, self.lcdc, self.palettes);
+        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.line_x, self.win_x, self.window_triggered, &self.vram, self.lcdc, self.palettes);
         if let Some(colour) = colour {
             self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             self.line_x += 1;
         }
-
 
         if self.line_x == 160 {
             self.mode = Mode::HBlank;
@@ -343,8 +344,6 @@ impl PPU {
                 self.status |= Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
             }
-            
-            
 
             if self.mode != Mode::VBlank {
                 self.enter_oam_scan();
@@ -358,6 +357,11 @@ impl PPU {
         self.sprite_buffer = self.oam_search();
         self.status &= 0xFC;
         self.status |= Mode::OAMScan as u8;
+
+        if self.win_y == self.line_y {
+            //println!("window triggered");
+            self.window_triggered = true;
+        }
     }
 
     fn update_stat(&mut self) -> Interrupts {
