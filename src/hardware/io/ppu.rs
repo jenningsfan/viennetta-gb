@@ -1,6 +1,3 @@
-mod fifo;
-
-use fifo::*;
 use super::Interrupts;
 use bitflags::bitflags;
 
@@ -10,6 +7,7 @@ pub type LcdPixels = [u16; WIDTH * HEIGHT];
 
 const OAM_START: u16 = 0;
 const DRAW_START: u16 = 80;
+const HBLANK_START: u16 = DRAW_START + WIDTH as u16 * 4;
 const LINE_LEN: u16 = 456;
 const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
@@ -132,7 +130,6 @@ pub struct PPU {
     win_y: u8,
     palettes: Palettes,
     sprite_buffer: Vec<Object>,
-    fifo: FIFO,
     pub debug: bool,
     scheduled_stat_update: bool,
     window_triggered: bool,
@@ -158,7 +155,6 @@ impl Default for PPU {
             win_y: 0,
             palettes: Palettes::default(),
             sprite_buffer: vec![],
-            fifo: FIFO::default(),
             debug: false,
             scheduled_stat_update: false,
             window_triggered: false,
@@ -257,41 +253,27 @@ impl PPU {
         let mut interrupts = Interrupts::empty();
         interrupts |= self.update_mode();
         interrupts |= self.update_stat();
-        if self.mode == Mode::Drawing {
-            interrupts |= self.update_lcd();
-        }
-        // if self.scheduled_stat_update {
-        //     self.scheduled_stat_update = false;
-        //     interrupts |= self.update_stat();
-        // }
+        
         interrupts
     }
                                                                                        
-    fn update_lcd(&mut self) -> Interrupts {
-        for (i, sprite) in self.sprite_buffer.iter().enumerate() {
-            if sprite.x <= self.line_x + 8 {
-                self.fifo.sprite_fetch(*sprite);
-                self.sprite_buffer.remove(i);
-                break;
+    fn update_lcd(&mut self) {
+        for _ in 0..WIDTH / 8 {
+            let fetcher_x = (((self.scroll_x / 8) + (self.line_x / 8)) & 0x1F) as usize;
+            let fetcher_y = self.line_y.wrapping_add(self.scroll_y) as usize;
+            let fetcher_offset = (fetcher_y % 8) * 2;
+
+            let tile = self.fetch_tile(fetcher_x, fetcher_y);
+            let tile = self.fetch_tile_data(tile, fetcher_offset);
+
+            for i in 0..8 {
+                let i = 7 - i;
+                let pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
+                let colour = (self.palettes.bg_palette >> (2 * pixel)) & 0x3;
+                self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
+                self.line_x += 1;
             }
         }
-
-        let colour = self.fifo.run_cycle(self.scroll_x, self.scroll_y, self.line_y, self.line_x, self.win_x, self.window_triggered, &self.vram, self.lcdc, self.palettes);
-        if let Some(colour) = colour {
-            self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
-            self.line_x += 1;
-        }
-
-        if self.line_x == 160 {
-            self.mode = Mode::HBlank;
-            self.status &= 0xFC;
-            self.status |= Mode::HBlank as u8;
-            self.line_x = 0;
-            self.fifo = FIFO::default();
-
-            //return self.update_stat();
-        }
-        Interrupts::empty()
     }
 
     fn oam_search(&self) -> Vec<Object> {
@@ -321,11 +303,17 @@ impl PPU {
         
         self.cycles_line += 1;
         if self.cycles_line == DRAW_START && self.mode != Mode::VBlank {
-            self.fifo.x_pos = 0;
             self.line_x = 0;
             self.mode = Mode::Drawing;
             self.status &= 0xFC;
             self.status |= Mode::Drawing as u8;
+            self.update_lcd();
+        }
+        else if self.cycles_line == HBLANK_START {
+            self.mode = Mode::HBlank;
+            self.status &= 0xFC;
+            self.status |= Mode::HBlank as u8;
+            self.line_x = 0;
         }
         else if self.cycles_line == LINE_LEN {
             self.line_y += 1;
@@ -359,7 +347,6 @@ impl PPU {
         self.status |= Mode::OAMScan as u8;
 
         if self.win_y == self.line_y {
-            //println!("window triggered");
             self.window_triggered = true;
         }
     }
@@ -392,8 +379,38 @@ impl PPU {
         else {
             Interrupts::empty()
         }
+    }
 
-        // BUG IS THAT LYC=LY should only be checked at start of scanline and mode ones when entered
-        // NOT EVERY CYCLE
+
+    fn fetch_tile(&mut self, fetcher_x: usize, fetcher_y: usize) -> usize {
+        // let tilemap = if self.window_triggered {
+        //     if lcdc.contains(LCDC::WinTileMap) { 0x1C00 } else { 0x1800 }
+        // } else {
+        //     if lcdc.contains(LCDC::BgTileMap) { 0x1C00 } else { 0x1800 }
+        // };
+
+        let tilemap = if self.lcdc.contains(LCDC::BgTileMap) { 0x1C00 } else { 0x1800 };
+
+        self.vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x] as usize
+    }
+    
+    fn get_tile_fetch_index(&self, tile_index: usize, tile_offset: usize) -> usize {
+        let tile = tile_index * 16 + tile_offset;
+        if self.lcdc.contains(LCDC::BgTileData) {
+            tile
+        }
+        else {
+            if tile_index > 127 {
+                tile
+            }
+            else {
+                0x1000 + tile
+            }
+        }
+    }
+
+    fn fetch_tile_data(&mut self, tile_index: usize, tile_offset: usize) -> (u8, u8) {
+        let index = self.get_tile_fetch_index(tile_index, tile_offset);
+        (self.vram[index], self.vram[index + 1])
     }
 }
