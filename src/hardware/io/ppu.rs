@@ -13,7 +13,7 @@ const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
 const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
 
-const COLOURS: [u16; 5] = [0xFFFF, 0xB573, 0x6B4B, 0x0000, 0xf800];
+const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -133,6 +133,7 @@ pub struct PPU {
     pub debug: bool,
     scheduled_stat_update: bool,
     window_triggered: bool,
+    win_line_counter: u8,
 }
 
 impl Default for PPU {
@@ -158,6 +159,7 @@ impl Default for PPU {
             debug: false,
             scheduled_stat_update: false,
             window_triggered: false,
+            win_line_counter: 0,
         }
     }
 }
@@ -179,9 +181,9 @@ impl PPU {
     pub fn write_vram(&mut self, address: u16, value: u8) {
         // INVESTIGATE
         // COMMENTED OUT FOR DR. MARIO TO WORK
-        //if self.mode != Mode::Drawing {
+        // if self.mode != Mode::Drawing {
             self.vram[address as usize] = value;
-        //}
+        // }
     }
 
     pub fn read_oam(&self, address: u16) -> u8 {
@@ -258,20 +260,63 @@ impl PPU {
     }
                                                                                        
     fn update_lcd(&mut self) {
+        let mut bg_pixels = [0; WIDTH];
+        let mut window_occured = false;
+
         for _ in 0..WIDTH / 8 {
-            let fetcher_x = (((self.scroll_x / 8) + (self.line_x / 8)) & 0x1F) as usize;
-            let fetcher_y = self.line_y.wrapping_add(self.scroll_y) as usize;
+            let window = self.line_x + 7 >= self.win_x && self.line_y >= self.win_y && self.lcdc.contains(LCDC::WinEnable);
+
+            let fetcher_x;
+            let fetcher_y;
+            let tilemap;
+            
+            if window {
+                window_occured = true;
+                fetcher_x = (((self.line_x - self.win_x + 7) / 8) & 0x1F) as usize;
+                fetcher_y = (self.win_line_counter) as usize;
+                tilemap = self.lcdc.contains(LCDC::WinTileMap);
+            }
+            else {
+                fetcher_x = (((self.scroll_x / 8) + (self.line_x / 8)) & 0x1F) as usize;
+                fetcher_y = self.line_y.wrapping_add(self.scroll_y) as usize;
+                tilemap = self.lcdc.contains(LCDC::BgTileMap);
+            }
             let fetcher_offset = (fetcher_y % 8) * 2;
 
-            let tile = self.fetch_tile(fetcher_x, fetcher_y);
+            let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap);
             let tile = self.fetch_tile_data(tile, fetcher_offset);
 
             for i in 0..8 {
                 let i = 7 - i;
-                let pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
-                let colour = (self.palettes.bg_palette >> (2 * pixel)) & 0x3;
-                self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
+                let mut pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
+                if !self.lcdc.contains(LCDC::BgWinEnable) {
+                    pixel = 0;
+                }
+                bg_pixels[self.line_x as usize] = pixel;
+
                 self.line_x += 1;
+                
+            }
+        }
+
+        if self.lcdc.contains(LCDC::ObjEnable) {
+            for obj in &self.sprite_buffer {
+                
+            }
+        }
+
+        if window_occured {
+            self.win_line_counter += 1;
+        }
+
+        for (i, pixel) in bg_pixels.iter().enumerate() {
+            if (*pixel & 0xF0) == 0xF0 {
+                let colour = 3 + pixel & 0xF;
+                self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
+            }
+            else {
+                let colour = (self.palettes.bg_palette >> (2 * pixel)) & 0x3;
+                self.lcd[i + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
             }
         }
     }
@@ -309,7 +354,7 @@ impl PPU {
             self.status |= Mode::Drawing as u8;
             self.update_lcd();
         }
-        else if self.cycles_line == HBLANK_START {
+        else if self.cycles_line == HBLANK_START && self.mode != Mode::VBlank {
             self.mode = Mode::HBlank;
             self.status &= 0xFC;
             self.status |= Mode::HBlank as u8;
@@ -331,6 +376,7 @@ impl PPU {
                 self.status &= 0xFC;
                 self.status |= Mode::VBlank as u8;
                 interrupts |= Interrupts::VBlank;
+                self.win_line_counter = 0;
             }
 
             if self.mode != Mode::VBlank {
@@ -382,15 +428,8 @@ impl PPU {
     }
 
 
-    fn fetch_tile(&mut self, fetcher_x: usize, fetcher_y: usize) -> usize {
-        // let tilemap = if self.window_triggered {
-        //     if lcdc.contains(LCDC::WinTileMap) { 0x1C00 } else { 0x1800 }
-        // } else {
-        //     if lcdc.contains(LCDC::BgTileMap) { 0x1C00 } else { 0x1800 }
-        // };
-
-        let tilemap = if self.lcdc.contains(LCDC::BgTileMap) { 0x1C00 } else { 0x1800 };
-
+    fn fetch_tile(&mut self, fetcher_x: usize, fetcher_y: usize, tilemap: bool) -> usize {
+        let tilemap = if tilemap { 0x1C00 } else { 0x1800 };
         self.vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x] as usize
     }
     

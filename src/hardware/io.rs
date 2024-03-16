@@ -131,8 +131,8 @@ impl MMU {
 impl MMU {
     pub fn run_cycles(&mut self, cycles: u8) {
         for _ in 0..cycles {
-            self.int_flag |= self.ppu.run_cycles(cycles * 4);
-            self.int_flag |= self.timer.run_cycles(cycles);
+            self.int_flag |= self.ppu.run_cycles(4);
+            self.int_flag |= self.timer.run_cycles(1);
 
             if let Some(addr) = self.dma_transfer_offset {
                 self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
