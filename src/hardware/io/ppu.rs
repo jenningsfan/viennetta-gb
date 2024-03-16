@@ -67,7 +67,7 @@ impl From<u8> for Colour {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 enum Palette {
     #[default] Background,
     Sprite0,
@@ -100,8 +100,8 @@ impl Object {
             y: (bytes >> 24) as u8,
             tile: ((bytes >> 8) & 0xFF) as u8,
             priority: (flags >> 7) & 1 == 1,
-            x_flip: (flags >> 6) & 1 == 1,
-            y_flip: (flags >> 5) & 1 == 1,
+            y_flip: (flags >> 6) & 1 == 1,
+            x_flip: (flags >> 5) & 1 == 1,
             palette: match (flags >> 4) & 1 {
                 0 => Palette::Sprite0,
                 1 => Palette::Sprite1,
@@ -260,7 +260,7 @@ impl PPU {
     }
                                                                                        
     fn update_lcd(&mut self) {
-        let mut bg_pixels = [0; WIDTH];
+        let mut pixels = [(0, Palette::Background); WIDTH];
         let mut window_occured = false;
 
         for _ in 0..WIDTH / 8 {
@@ -293,25 +293,31 @@ impl PPU {
                 if !self.lcdc.contains(LCDC::BgWinEnable) {
                     pixel = 0;
                 }
-                bg_pixels[self.line_x as usize] = pixel;
 
+                pixels[self.line_x as usize] = (pixel, Palette::Background);
                 self.line_x += 1;
-                
             }
         }
 
         if self.lcdc.contains(LCDC::ObjEnable) {
             for obj in &self.sprite_buffer {
-                let fetcher_offset = ((self.line_y - obj.y) % 8) * 2;
-                let tile = self.fetch_tile_data(obj.tile as usize,fetcher_offset as usize, true);
+                let mut obj_y = self.line_y - obj.y;
+                if obj.y_flip {
+                    obj_y = 7 - obj_y;
+                }
+                let fetcher_offset = (obj_y % 8) * 2;
+                let tile = self.fetch_tile_data(obj.tile as usize, fetcher_offset as usize, true);
                 
                 for offset in 0..8 { 
-                    let i = 7 - offset;
+                    let i = if obj.x_flip { offset } else { 7 - offset };
                     let pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
                     let offset = obj.x as usize + offset as usize - 8;
-
-                    if pixel != 0 && (!obj.priority || bg_pixels[offset] == 0){
-                        bg_pixels[offset] = pixel;
+                    
+                    if pixel != 0 && (!obj.priority || pixels[offset].0 == 0) {
+                        pixels[offset] = (pixel, obj.palette);
+                        // if obj.palette == Palette::Sprite1 {
+                        //     pixels[offset] = (0xFA, Palette::Sprite1);
+                        // }
                     }
                 }
             }
@@ -321,15 +327,21 @@ impl PPU {
             self.win_line_counter += 1;
         }
 
-        for (i, pixel) in bg_pixels.iter().enumerate() {
-            if (*pixel & 0xF0) == 0xF0 {
-                let colour = 3 + pixel & 0xF;
+        for (i, pixel) in pixels.iter().enumerate() {
+            // Highlighting code
+            if (pixel.0 & 0xF0) == 0xF0 {
+                let colour = 3 + pixel.0 & 0xF;
                 self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
+                continue;
             }
-            else {
-                let colour = (self.palettes.bg_palette >> (2 * pixel)) & 0x3;
-                self.lcd[i + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
-            }
+
+            let palette = match pixel.1 {
+                Palette::Background => self.palettes.bg_palette,
+                Palette::Sprite0 => self.palettes.obj0_palette,
+                Palette::Sprite1 => self.palettes.obj1_palette,
+            };
+            let colour = (palette >> (2 * pixel.0)) & 0x3;
+            self.lcd[i + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
         }
     }
 
