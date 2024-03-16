@@ -181,9 +181,9 @@ impl PPU {
     pub fn write_vram(&mut self, address: u16, value: u8) {
         // INVESTIGATE
         // COMMENTED OUT FOR DR. MARIO TO WORK
-        // if self.mode != Mode::Drawing {
+        if self.mode != Mode::Drawing {
             self.vram[address as usize] = value;
-        // }
+        }
     }
 
     pub fn read_oam(&self, address: u16) -> u8 {
@@ -198,9 +198,9 @@ impl PPU {
     pub fn write_oam(&mut self, address: u16, value: u8) {
         // INVESTIGATE
         // COMMENTED OUT FOR TETRIS TO WORK
-        // if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
+        if self.mode == Mode::HBlank || self.mode == Mode::VBlank {
             self.oam[address as usize] = value;
-        // }
+        }
     }
 
     pub fn read_io(&self, address: u16) -> u8 {
@@ -282,9 +282,10 @@ impl PPU {
                 tilemap = self.lcdc.contains(LCDC::BgTileMap);
             }
             let fetcher_offset = (fetcher_y % 8) * 2;
+            let tile_data_area = self.lcdc.contains(LCDC::BgTileData);
 
             let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap);
-            let tile = self.fetch_tile_data(tile, fetcher_offset);
+            let tile = self.fetch_tile_data(tile, fetcher_offset, tile_data_area);
 
             for i in 0..8 {
                 let i = 7 - i;
@@ -301,7 +302,18 @@ impl PPU {
 
         if self.lcdc.contains(LCDC::ObjEnable) {
             for obj in &self.sprite_buffer {
+                let fetcher_offset = ((self.line_y - obj.y) % 8) * 2;
+                let tile = self.fetch_tile_data(obj.tile as usize,fetcher_offset as usize, true);
                 
+                for offset in 0..8 { 
+                    let i = 7 - offset;
+                    let pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
+                    let offset = obj.x as usize + offset as usize - 8;
+
+                    if pixel != 0 && (!obj.priority || bg_pixels[offset] == 0){
+                        bg_pixels[offset] = pixel;
+                    }
+                }
             }
         }
 
@@ -428,14 +440,14 @@ impl PPU {
     }
 
 
-    fn fetch_tile(&mut self, fetcher_x: usize, fetcher_y: usize, tilemap: bool) -> usize {
+    fn fetch_tile(&self, fetcher_x: usize, fetcher_y: usize, tilemap: bool) -> usize {
         let tilemap = if tilemap { 0x1C00 } else { 0x1800 };
         self.vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x] as usize
     }
     
-    fn get_tile_fetch_index(&self, tile_index: usize, tile_offset: usize) -> usize {
+    fn get_tile_fetch_index(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool) -> usize {
         let tile = tile_index * 16 + tile_offset;
-        if self.lcdc.contains(LCDC::BgTileData) {
+        if tile_data_area {
             tile
         }
         else {
@@ -448,8 +460,8 @@ impl PPU {
         }
     }
 
-    fn fetch_tile_data(&mut self, tile_index: usize, tile_offset: usize) -> (u8, u8) {
-        let index = self.get_tile_fetch_index(tile_index, tile_offset);
+    fn fetch_tile_data(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool) -> (u8, u8) {
+        let index = self.get_tile_fetch_index(tile_index, tile_offset, tile_data_area);
         (self.vram[index], self.vram[index + 1])
     }
 }
