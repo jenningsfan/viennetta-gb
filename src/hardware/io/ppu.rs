@@ -301,12 +301,38 @@ impl PPU {
 
         if self.lcdc.contains(LCDC::ObjEnable) {
             for obj in &self.sprite_buffer {
-                let mut obj_y = self.line_y - obj.y;
+                let mut obj_y = (self.line_y + 16) - obj.y;
                 if obj.y_flip {
-                    obj_y = 7 - obj_y;
+                    if self.lcdc.contains(LCDC::ObjSize) {
+                        obj_y = 15 - obj_y;
+                    }
+                    else {
+                        obj_y = 7 - obj_y;
+                    }
                 }
                 let fetcher_offset = (obj_y % 8) * 2;
-                let tile = self.fetch_tile_data(obj.tile as usize, fetcher_offset as usize, true);
+
+                let mut tile = obj.tile as usize;
+                if self.lcdc.contains(LCDC::ObjSize) {
+                    // dbg!(obj_y);
+                    // dbg!(self.line_y);
+                    // dbg!(obj.y);
+
+                    if obj_y > 7 {
+                        // bottom tile
+                        tile |= 0x01;
+                        //tile &= 0xFE;
+                        //println!("guten morgen");
+
+                    }
+                    else {
+                        // top tile
+                        //println!("guten tag");
+                        //tile |= 0x01;
+                        tile &= 0xFE;
+                    }
+                }
+                let tile = self.fetch_tile_data(tile, fetcher_offset as usize, true);
                 
                 for offset in 0..8 { 
                     let i = if obj.x_flip { offset } else { 7 - offset };
