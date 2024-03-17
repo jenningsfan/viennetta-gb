@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::os::windows::process;
 use std::{fs, env};
 use std::io::stdin;
 use viennetta_gb::hardware::io::Cartridge;
@@ -69,6 +70,9 @@ fn main() {
                         println!("LY: {:02X}", gameboy.mmu.ppu.line_y);
                         println!("LYC: {:02X}", gameboy.mmu.ppu.line_compare);
                         println!("line cycles: {}", gameboy.mmu.ppu.cycles_line);
+                        println!("BG pal: {:02X}", gameboy.mmu.ppu.palettes.bg_palette);
+                        println!("OBJ0 pal: {:02X}", gameboy.mmu.ppu.palettes.obj0_palette);
+                        println!("OBJ1 pal: {:02X}", gameboy.mmu.ppu.palettes.obj1_palette);
 
                         let mode = match stat & 0x3 {
                             0 => "H-Blank",

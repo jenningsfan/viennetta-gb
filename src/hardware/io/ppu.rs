@@ -75,10 +75,10 @@ enum Palette {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-struct Palettes {
-    bg_palette: u8,
-    obj0_palette: u8,
-    obj1_palette: u8,
+pub struct Palettes {
+    pub bg_palette: u8,
+    pub obj0_palette: u8,
+    pub obj1_palette: u8,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -128,7 +128,7 @@ pub struct PPU {
     scroll_y: u8,
     win_x: u8,
     win_y: u8,
-    palettes: Palettes,
+    pub palettes: Palettes,
     sprite_buffer: Vec<Object>,
     pub debug: bool,
     scheduled_stat_update: bool,
@@ -289,7 +289,7 @@ impl PPU {
 
             for i in 0..8 {
                 let i = 7 - i;
-                let mut pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
+                let mut pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
                 if !self.lcdc.contains(LCDC::BgWinEnable) {
                     pixel = 0;
                 }
@@ -310,14 +310,11 @@ impl PPU {
                 
                 for offset in 0..8 { 
                     let i = if obj.x_flip { offset } else { 7 - offset };
-                    let pixel = ((tile.0 >> i) & 1) << 1 | ((tile.1 >> i) & 1);
+                    let pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
                     let offset = obj.x as usize + offset as usize - 8;
-                    
+
                     if pixel != 0 && (!obj.priority || pixels[offset].0 == 0) {
                         pixels[offset] = (pixel, obj.palette);
-                        // if obj.palette == Palette::Sprite1 {
-                        //     pixels[offset] = (0xFA, Palette::Sprite1);
-                        // }
                     }
                 }
             }
@@ -363,7 +360,8 @@ impl PPU {
                 break;
             }
         } 
-
+        objects.sort_by_key(|obj| obj.x);
+        objects.reverse();
         objects
     }
 
