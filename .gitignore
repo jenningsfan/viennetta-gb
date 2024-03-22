@@ -17,3 +17,5 @@ perf.data.old
 pocket.gb
 /mooneye_tests
 /roms
+log_comparer/correct.txt
+log_comparer/viennetta.txt

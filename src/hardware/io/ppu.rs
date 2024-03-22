@@ -314,21 +314,10 @@ impl PPU {
 
                 let mut tile = obj.tile as usize;
                 if self.lcdc.contains(LCDC::ObjSize) {
-                    // dbg!(obj_y);
-                    // dbg!(self.line_y);
-                    // dbg!(obj.y);
-
                     if obj_y > 7 {
-                        // bottom tile
                         tile |= 0x01;
-                        //tile &= 0xFE;
-                        //println!("guten morgen");
-
                     }
                     else {
-                        // top tile
-                        //println!("guten tag");
-                        //tile |= 0x01;
                         tile &= 0xFE;
                     }
                 }

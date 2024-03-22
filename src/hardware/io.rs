@@ -134,13 +134,13 @@ impl MMU {
             self.int_flag |= self.ppu.run_cycles(4);
             self.int_flag |= self.timer.run_cycles(1);
 
-            if let Some(addr) = self.dma_transfer_offset {
-                self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
-                self.dma_transfer_offset = Some(addr + 1);
-                if (addr + 1) & 0xA0 == 0xA0 {
-                    self.dma_transfer_offset = None;
-                }
-            }
+            // if let Some(addr) = self.dma_transfer_offset {
+            //     self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
+            //     self.dma_transfer_offset = Some(addr + 1);
+            //     if (addr + 1) & 0xA0 == 0xA0 {
+            //         self.dma_transfer_offset = None;
+            //     }
+            // }
         }
     }
 
@@ -198,7 +198,11 @@ impl MMU {
     }
 
     fn oam_dma(&mut self, address: u8) {
-        self.last_dma_value = address;
-        self.dma_transfer_offset = Some((address as u16) << 8);
+        // self.last_dma_value = address;
+        // self.dma_transfer_offset = Some((address as u16) << 8);
+
+        for offset in 0..0xA0 {
+            self.ppu.write_oam(offset, self.read_memory(((address as u16) << 8) | offset));
+        }
     }
 }

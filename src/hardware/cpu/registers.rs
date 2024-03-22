@@ -33,6 +33,18 @@ impl Flags {
 
         flags_str
     }
+
+    pub fn to_string_trace(self) -> String {
+        let mut flags_str = String::new();
+        for &flag in &[Flags::Zero, Flags::Negative, Flags::HalfCarry, Flags::Carry] {
+            flags_str.push(match self.contains(flag) {
+                true => flag.to_char(),
+                false => '-',
+            });
+        }
+
+        flags_str
+    }
 }
 
 #[derive(Debug, Default)]
