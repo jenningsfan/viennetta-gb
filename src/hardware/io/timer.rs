@@ -3,10 +3,9 @@ use super::Interrupts;
 #[derive(Debug, Default)]
 pub struct Timer {
     div: u16,
-    counter: u8,
+    tima: u8,
     modulo: u8,
     control: u8,
-    intern_counter: u16,
 }
 
 impl Timer {
@@ -14,25 +13,27 @@ impl Timer {
         let mut int = false;
 
         for _ in 0..cycles {
+            let tima_bit_pos = match self.control & 0x3 {
+                0 => 9,
+                1 => 3,
+                2 => 5,
+                3 => 7,
+                _ => panic!("impossible")
+            };
+            let mut prev_tima_bit = (self.div >> tima_bit_pos) & 1;
+            prev_tima_bit &= (self.control as u16 >> 2) & 1; // get enable bit
+
             self.div = self.div.wrapping_add(1);
 
-            if self.control & 0x4 == 0x4 {
-                let tima_cycles = match self.control & 0x2 {
-                    0 => 256,
-                    1 => 4,
-                    2 => 16,
-                    3 => 64,
-                    _ => panic!("impossible")
-                };
+            let mut post_tima_bit = (self.div >> tima_bit_pos) & 1;
+            post_tima_bit &= (self.control as u16 >> 2) & 1; // get enable bit
 
-                while self.intern_counter >= tima_cycles {
-                    self.intern_counter -= tima_cycles;
-                    self.counter = self.counter.wrapping_add(1);
-
-                    if self.counter == 0 {  // i.e. overflown
-                        self.counter = self.modulo;
-                        int = true;
-                    }
+            if prev_tima_bit == 1 && post_tima_bit == 0 { // falling edge
+                self.tima = self.tima.wrapping_add(1);
+                
+                if self.tima == 0 {  // i.e. overflown
+                    self.tima = self.modulo;
+                    int = true;
                 }
             }
         }
@@ -48,7 +49,7 @@ impl Timer {
     pub fn read_io(&self, reg: u16) -> u8 {
         match reg {
             0xFF04 => (self.div >> 8) as u8,
-            0xFF05 => self.counter,
+            0xFF05 => self.tima,
             0xFF06 => self.modulo,
             0xFF07 => self.control,
             _ => panic!("{reg} is not a valid timer register")
@@ -58,7 +59,7 @@ impl Timer {
     pub fn write_io(&mut self, reg: u16, value: u8) {
         match reg {
             0xFF04 => self.div = 0,
-            0xFF05 => self.counter = value,
+            0xFF05 => self.tima = value,
             0xFF06 => self.modulo = value,
             0xFF07 => self.control = value,
             _ => panic!("{reg} is not a valid timer register")

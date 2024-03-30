@@ -678,7 +678,7 @@ impl CPU {
     }
 
     pub fn trace_regs(&self) {
-        println!("A:{:02x} F:{} BC:{:02x}{:02x} DE:{:02x}{:02x} HL:{:02x}{:02x} SP:{:04x} PC:{:04x}",
+        eprintln!("A:{:02x} F:{} BC:{:02x}{:02x} DE:{:02x}{:02x} HL:{:02x}{:02x} SP:{:04x} PC:{:04x}",
             self.regs.a, self.regs.flags.to_string_trace(), self.regs.b, self.regs.c, self.regs.d,
             self.regs.e, self.regs.h, self.regs.l, self.regs.sp, self.regs.pc);
     }

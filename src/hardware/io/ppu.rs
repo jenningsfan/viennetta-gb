@@ -5,7 +5,6 @@ pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
 pub type LcdPixels = [u16; WIDTH * HEIGHT];
 
-const OAM_START: u16 = 0;
 const DRAW_START: u16 = 80;
 const HBLANK_START: u16 = DRAW_START + WIDTH as u16 * 4;
 const LINE_LEN: u16 = 456;

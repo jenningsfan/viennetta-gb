@@ -106,7 +106,6 @@ pub struct MMU {
     pub int_enable: Interrupts,
     pub int_flag: Interrupts,
     boot_rom_enable: u8,
-    dma_transfer_offset: Option<u16>,
     last_dma_value: u8,
 }
 
@@ -122,7 +121,6 @@ impl MMU {
             int_enable: Interrupts::empty(),
             int_flag: Interrupts::empty(),
             boot_rom_enable: 0,
-            dma_transfer_offset: None,
             last_dma_value: 0,
         }
     }
@@ -132,7 +130,7 @@ impl MMU {
     pub fn run_cycles(&mut self, cycles: u8) {
         for _ in 0..cycles {
             self.int_flag |= self.ppu.run_cycles(4);
-            self.int_flag |= self.timer.run_cycles(1);
+            self.int_flag |= self.timer.run_cycles(4);
 
             // if let Some(addr) = self.dma_transfer_offset {
             //     self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
