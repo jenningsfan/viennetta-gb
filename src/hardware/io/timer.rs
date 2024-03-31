@@ -65,4 +65,11 @@ impl Timer {
             _ => panic!("{reg} is not a valid timer register")
         }
     }
+
+    pub fn debug(&self) {
+        println!("DIV: {:02X}", self.div);
+        println!("TIMA: {:02X}", self.tima);
+        println!("TMA: {:02X}", self.modulo);
+        println!("TAC: {:02X}", self.control);
+    }
 }

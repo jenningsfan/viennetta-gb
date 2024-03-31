@@ -107,6 +107,9 @@ fn main() {
 
                             println!("Mode: {mode} ({})", stat & 0x3);
                         }
+                        "timer" => {
+                            gameboy.mmu.timer.debug();
+                        }
                         _ => println!("Not a valid command"),
                     }
                 }

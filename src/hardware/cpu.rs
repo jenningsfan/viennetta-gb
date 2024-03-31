@@ -80,13 +80,10 @@ impl CPU {
         //println!("{:04X}: {:02X}{:02X}", self.regs.pc, opcode, mmu.read_memory(self.regs.pc + 1));
         let block = opcode >> 6;
         
-        let cycles = if opcode == 0xCB {
-            CB_CYCLES[ mmu.read_memory(self.regs.pc + 1) as usize]
-        }
-        else {
-            INSTR_CYCLES[opcode as usize]
-        };
-        
+        let cycles_cb = CB_CYCLES[mmu.read_memory(self.regs.pc + 1) as usize];
+        let cycles_normal = CYCLES_NORMAL[opcode as usize];
+        let cycles_cond_taken = CYCLES_COND_TAKEN[opcode as usize];
+
         self.regs.pc += 1;
         //self.dump_regs();
 
@@ -96,7 +93,7 @@ impl CPU {
                 let imm16 = (mmu.read_memory(self.regs.pc + 1) as u16) << 8 | mmu.read_memory(self.regs.pc) as u16;
                 if opcode == 0x00 {
                     // nop
-                    return cycles;
+                    return cycles_normal;
                 }
         
                 {
@@ -105,30 +102,30 @@ impl CPU {
                             // ld r16, imm16
                             self.regs.set_r16(r16, imm16);
                             self.regs.pc += 2;
-                            return cycles;
+                            return cycles_normal;
                         },
                         0x2 => {
                             // ld [r16mem], a
                             let addr = self.regs.get_r16_mem(r16);
                             mmu.write_memory(addr, self.regs.a);
-                            return cycles;
+                            return cycles_normal;
                         },
                         0xA => {
                             // ld a, [r16mem]
                             let addr = self.regs.get_r16_mem(r16);
                             self.regs.a = mmu.read_memory(addr);
-                            return cycles;
+                            return cycles_normal;
                         },
 
                         0x3 => {
                             // inc r16
                             self.regs.apply_r16(r16, |r| r + 1);
-                            return cycles;
+                            return cycles_normal;
                         },
                         0xB => {
                             // dec r16
                             self.regs.apply_r16(r16, |r| r - 1);
-                            return cycles;
+                            return cycles_normal;
                         },
                         0x9 => {
                             // add hl, r16
@@ -144,7 +141,7 @@ impl CPU {
                             }
         
                             self.regs.set_hl(hl.wrapping_add(r16));
-                            return cycles;
+                            return cycles_normal;
                         },
         
                         _ => {},
@@ -155,7 +152,7 @@ impl CPU {
                         mmu.write_memory(imm16, (self.regs.sp & 0xFF) as u8);
                         mmu.write_memory(imm16 + 1, (self.regs.sp >> 8) as u8);
                         self.regs.pc += 2;
-                        return cycles;
+                        return cycles_normal;
                     }
                 }
         
@@ -167,18 +164,18 @@ impl CPU {
                         0x4 => {
                             // inc r8
                             self.regs.add_r8(r8, 1, mmu, false);
-                            return cycles;
+                            return cycles_normal;
                         },
                         0x5 => {
                             // dec r8
                             self.regs.sub_r8(r8, 1, mmu, false);
-                            return cycles;
+                            return cycles_normal;
                         },
                         0x6 => {
                             // ld r8, imm8
                             self.regs.set_r8(r8, mmu.read_memory(self.regs.pc), mmu);
                             self.regs.pc += 1;
-                            return cycles;
+                            return cycles_normal;
                         },
         
                         _ => {},
@@ -194,7 +191,7 @@ impl CPU {
                         }
         
                         self.regs.a = self.regs.a.rotate_left(1);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x0F => {
                         // rrca
@@ -204,7 +201,7 @@ impl CPU {
                         }
                         
                         self.regs.a = self.regs.a.rotate_right(1);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x17 => {
                         // rla
@@ -217,7 +214,7 @@ impl CPU {
                             self.regs.flags = Flags::Carry
                         }
                         self.regs.a = shifted;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x1F => {
                         // rra
@@ -230,7 +227,7 @@ impl CPU {
                             self.regs.flags = Flags::Carry
                         }
                         self.regs.a = shifted;  
-                        return cycles;      
+                        return cycles_normal;      
                     },
                     0x27 => {
                         // daa
@@ -259,28 +256,28 @@ impl CPU {
                         if should_carry {
                             self.regs.flags |= Flags::Carry;
                         }
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x2F => {
                         // cpl
                         self.regs.a = !self.regs.a;
                         self.regs.flags |= Flags::Negative;
                         self.regs.flags |= Flags::HalfCarry;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x37 => {
                         // scf
                         self.regs.flags |= Flags::Carry;
                         self.regs.flags -= Flags::HalfCarry;
                         self.regs.flags -= Flags::Negative;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x3F => {
                         // ccf
                         self.regs.flags ^= Flags::Carry;
                         self.regs.flags -= Flags::HalfCarry;
                         self.regs.flags -= Flags::Negative;
-                        return cycles;
+                        return cycles_normal;
                     },
         
                     _ => {},
@@ -290,7 +287,7 @@ impl CPU {
                     // jr imm8
                     let offset = mmu.read_memory(self.regs.pc) as i8 as i16 + 1;
                     self.regs.pc = (self.regs.pc as i16 + offset) as u16;
-                    return cycles;
+                    return cycles_normal;
                 }
         
                 if opcode & 0x27 == 0x20 {
@@ -299,11 +296,12 @@ impl CPU {
                     if condition {
                         let offset = mmu.read_memory(self.regs.pc) as i8 as i16 + 1;
                         self.regs.pc = (self.regs.pc as i16 + offset) as u16;
+                        return cycles_cond_taken;
                     }
                     else {
                         self.regs.pc += 1; // imm8
+                        return cycles_normal;
                     }
-                    return cycles;
                 }
         
                 if opcode == 0x10 {
@@ -321,7 +319,7 @@ impl CPU {
                 let dest_reg = (opcode >> 3) & 0x07;
         
                 self.regs.set_r8(dest_reg, self.regs.get_r8(source_reg, mmu), mmu);
-                return cycles;
+                return cycles_normal;
             },
             0x2 => {
                 // All 8-bit arithmetic
@@ -405,7 +403,7 @@ impl CPU {
 
                     _ => {},
                 }
-                return cycles;
+                return cycles_normal;
             },
             0x3 => {
                 //dbg!(opcode);
@@ -418,7 +416,7 @@ impl CPU {
                     0xC6 => {
                         // add a, imm8
                         self.regs.add_acc(imm8);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xCE => {
                         // adc a, imm8
@@ -430,12 +428,12 @@ impl CPU {
                         if carry == 1 && imm8 & 0xF == 0xF {
                             self.regs.flags |= Flags::HalfCarry;
                         }
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xD6 => {
                         // sub a, imm8
                         self.regs.sub_acc(imm8);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xDE => {
                         // subc a, imm8
@@ -447,7 +445,7 @@ impl CPU {
                         if carry == 1 && imm8 & 0xF == 0xF {
                             self.regs.flags |= Flags::HalfCarry;
                         }
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xE6 => {
                         // and a, imm8
@@ -461,7 +459,7 @@ impl CPU {
                         else {
                             self.regs.flags -= Flags::Zero;
                         }
-                        return cycles;
+                        return cycles_normal;
                     }
                     0xEE => {
                         // xor a, imm8
@@ -475,7 +473,7 @@ impl CPU {
                         else {
                             self.regs.flags -= Flags::Zero;
                         }
-                        return cycles;     
+                        return cycles_normal;     
                     } 
                     0xF6 => {
                         // or a, imm8
@@ -489,14 +487,14 @@ impl CPU {
                         else {
                             self.regs.flags -= Flags::Zero;
                         }
-                        return cycles;
+                        return cycles_normal;
                     }
                     0xFE => {
                         // cp a, imm8
                         let old_a = self.regs.a;
                         self.regs.sub_acc(imm8);
                         self.regs.a = old_a;
-                        return cycles;
+                        return cycles_normal;
                     },
 
                     _ => {},
@@ -506,64 +504,69 @@ impl CPU {
                 if opcode == 0xC9 {
                     // ret
                     self.regs.pc = self.pop_from_stack(mmu);
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 if opcode == 0xD9 {
                     // reti
                     self.regs.pc = self.pop_from_stack(mmu);
                     self.int_master_enable = true;
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 if opcode & 0x27 == 0x00 {
                     // ret cond
                     if condition {
                         self.regs.pc = self.pop_from_stack(mmu);
+                        return cycles_cond_taken;
                     }
-                    return cycles;
+                    else {
+                        return cycles_normal;
+                    }
                 }
 
                 if opcode & 0x27 == 0x02 {
                     // jp cond, imm16
                     if condition {
                         self.regs.pc = imm16;
+                        return cycles_cond_taken;
                     }
                     else {
                         self.regs.pc += 2;
+                        return cycles_normal;
                     }
-                    return cycles;
                 }
                 
                 if opcode == 0xC3 {
                     // jp imm16
                     //dbg!(imm16);
                     self.regs.pc = imm16;
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 if opcode == 0xE9 {
                     // jp hl
                     self.regs.pc = self.regs.get_hl();
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 if opcode == 0xCD {
                     // call imm16
                     self.push_to_stack(self.regs.pc + 2, mmu);
                     self.regs.pc = imm16;
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 if opcode & 0x07 == 0x04 {
                     if condition {
                         self.push_to_stack(self.regs.pc + 2, mmu);
                         self.regs.pc = imm16;
+                        return cycles_cond_taken;
                     }
                     else {
                         self.regs.pc += 2;
+                        return cycles_normal;
                     }
-                    return cycles;
                 }
 
                 if opcode & 0x07 == 0x07 {
@@ -571,7 +574,7 @@ impl CPU {
                     let target = (opcode & 0x38) as u16;
                     self.push_to_stack(self.regs.pc, mmu);
                     self.regs.pc = target;
-                    return cycles;
+                    return cycles_normal;
                 }
 
                 let r16 = (opcode & 0x30) >> 4;
@@ -580,12 +583,12 @@ impl CPU {
                         // pop r16stk
                         let value = self.pop_from_stack(mmu);
                         self.regs.set_r16_stk(r16, value);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0x05 => {
                         // push r16stk                      
                         self.push_to_stack(self.regs.get_r16_stk(r16), mmu);
-                        return cycles;
+                        return cycles_normal;
                     },
                     _ => {},
                 }
@@ -594,69 +597,69 @@ impl CPU {
                     0xE2 => {
                         // ldh [c], a
                         mmu.write_memory(0xFF00 + self.regs.c as u16, self.regs.a);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xE0 => {
                         // ldh [imm8], a
                         mmu.write_memory(0xFF00 + imm8 as u16, self.regs.a);
                         self.regs.pc += 1;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xEA => {
                         // ld [imm16], a
                         mmu.write_memory(imm16, self.regs.a);
                         self.regs.pc += 2;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xF2 => {
                         // ldh a, [c]
                         self.regs.a = mmu.read_memory(0xFF00 + self.regs.c as u16);
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xF0 => {
                         // ldh a, [imm8]
                         self.regs.a = mmu.read_memory(0xFF00 + imm8 as u16);
                         self.regs.pc += 1;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xFA => {
                         // ld a, [imm16]
                         self.regs.a = mmu.read_memory(imm16);
                         self.regs.pc += 2;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xE8 => {
                         // add sp, imm8
                         self.regs.sp = self.regs.add_sp_signed(imm8);
                         self.regs.pc += 1;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xF8 => {
                         // ld hl, sp + imm8
                         let result = self.regs.add_sp_signed(imm8);
                         self.regs.set_hl(result);
                         self.regs.pc += 1;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xF9 => {
                         // ld sp, hl
                         self.regs.sp = self.regs.get_hl();
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xF3 => {
                         // di
                         self.int_master_enable = false;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xFB => {
                         // ei
                         self.ei_last_instruction = true;
-                        return cycles;
+                        return cycles_normal;
                     },
                     0xCB => {
                         self.execute_cb_opcode(mmu.read_memory(self.regs.pc), mmu);
                         self.regs.pc += 1;
-                        return cycles;
+                        return cycles_cb;
                     },
                     _ => {},
                 }

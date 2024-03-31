@@ -100,7 +100,7 @@ pub struct MMU {
     pub ppu: PPU,
     ram: RAM,
     serial: Serial,
-    timer: Timer,
+    pub timer: Timer,
     cart: Cartridge,
     pub joypad: Joypad,
     pub int_enable: Interrupts,
