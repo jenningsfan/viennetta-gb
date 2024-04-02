@@ -326,8 +326,8 @@ impl PPU {
                     let i = if obj.x_flip { offset } else { 7 - offset };
                     let pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
                     let offset = obj.x as usize + offset as usize - 8;
-
-                    if pixel != 0 && (!obj.priority || pixels[offset].0 == 0) {
+                    
+                    if offset < WIDTH && pixel != 0 && (!obj.priority || pixels[offset].0 == 0) {
                         pixels[offset] = (pixel, obj.palette);
                     }
                 }
