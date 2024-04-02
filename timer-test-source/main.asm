@@ -9,13 +9,6 @@ SECTION "Header", ROM0[$100]
   ds $150 - @, 0 ; Make room for the header
 
 EntryPoint:
-  ld a, 1
-  ld [rTMA], a
-  ld a, %100
-  ld [rTAC], a
-  ld a, 0
-  ld [rTIMA], a
 WaitVBlank:
-  ; ld a, [rLY]
-  ld a, [rTIMA]
+  ld a, [rLY]
   jp WaitVBlank
