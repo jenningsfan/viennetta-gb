@@ -19,3 +19,6 @@ pocket.gb
 /roms
 log_comparer/correct.txt
 log_comparer/viennetta.txt
+imgui.ini
+timer-test-source/main.o
+timer-test-source/timer-test.gb

@@ -139,9 +139,9 @@ impl Default for PPU {
     fn default() -> Self {
         Self {
             mode: Mode::OAMScan,
-            line_y: FRAME_SCANLINES - 1,
+            line_y: 0,
             line_x: 0,
-            cycles_line: 455,               // So that first line has OAM scan
+            cycles_line: 0,               // So that first line has OAM scan
             lcd: [0xFFFF; WIDTH * HEIGHT],
             vram: [0; 0x2000],
             oam: [0; 0x100],
@@ -205,10 +205,10 @@ impl PPU {
     pub fn read_io(&self, address: u16) -> u8 {
         match address {
             0xFF40 => self.lcdc.bits(),
-            0xFF41 => self.status,
+            0xFF41 => self.status | 0x80,
             0xFF42 => self.scroll_y,
             0xFF43 => self.scroll_x,
-            0xFF44 => self.line_y,
+            0xFF44 => if self.line_y == 153 { 0 } else { self.line_y },
             0xFF45 => self.line_compare,
             0xFF47 => self.palettes.bg_palette,
             0xFF48 => self.palettes.obj0_palette,
@@ -245,6 +245,17 @@ impl PPU {
         }
         else {
             self.lcd = [0xFFFF; WIDTH * HEIGHT];
+            self.line_y = 0;
+            self.line_x = 0;
+            self.status &= 0xFC;
+        }
+
+        if cycles % 4 != 0 {
+            panic!("Cycles told is {cycles}, which is not a multiple of 4");
+        }
+
+        if self.cycles_line % 4 != 0 {
+            panic!("current dot is {}, which is not a multiple of 4", self.cycles_line);
         }
 
         interrupts

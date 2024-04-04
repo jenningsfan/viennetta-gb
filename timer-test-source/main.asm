@@ -10,5 +10,5 @@ SECTION "Header", ROM0[$100]
 
 EntryPoint:
 WaitVBlank:
-  ld a, [rLY]
+  ldh a, [rSTAT]
   jp WaitVBlank
