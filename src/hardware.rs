@@ -1,4 +1,4 @@
-use self::{cpu::CPU, io::{MMU, Cartridge}};
+use self::{cpu::CPU, io::{MMU, cart::Cartridge}};
 
 pub mod io;
 pub mod cpu;

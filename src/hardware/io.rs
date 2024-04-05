@@ -1,7 +1,8 @@
-mod apu;
 pub mod joypad;
-mod serial;
 pub mod ppu;
+pub mod cart;
+mod apu;
+mod serial;
 mod timer;
 
 use bitflags::bitflags;
@@ -11,6 +12,7 @@ use self::serial::Serial;
 use self::timer::Timer;
 use self::joypad::Joypad;
 use super::boot_rom::BOOT_ROM;
+use self::cart::Cartridge;
 
 #[derive(Debug)]
 struct RAM {
@@ -42,45 +44,6 @@ impl Default for RAM {
             wram: [0; 0x2000],
             hram: [0; 0x7F],
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct Cartridge {
-    rom: [u8; 0x8000],
-}
-
-impl Cartridge {
-    pub fn new(game_rom: &[u8]) -> Self {
-        let mut rom = [0; 0x8000];
-        rom.copy_from_slice(game_rom);
-
-        Self {
-            rom,
-        }
-    }
-
-    fn read_rom(&self, address: u16) -> u8 {
-        self.rom[address as usize]
-    }
-
-    fn write_rom(&mut self, _address: u16, _value: u8) {
-        // Add mapper support here later
-        // It is left empty on purpose
-        // TODO: MBC
-    }
-
-    fn read_ram(&self, _address: u16) -> u8 {
-        // This would be external ram
-        // Left empty on purpose
-        // TODO: MBC
-        0xFF
-    }
-
-    fn write_ram(&mut self, _address: u16, _value: u8) {
-        // Add mapper support here later
-        // It is left empty on purpose
-        // TODO: MBC
     }
 }
 

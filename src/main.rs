@@ -3,7 +3,7 @@ use std::{fs, env};
 use std::io::stdin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use viennetta_gb::hardware::io::Cartridge;
+use viennetta_gb::hardware::io::cart::Cartridge;
 use viennetta_gb::hardware::GameBoy;
 use viennetta_gb::hardware::io::joypad::Buttons;
 

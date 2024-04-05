@@ -4,7 +4,7 @@ use rust_libretro::{
     contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
 }; // TODO: see which imports are necessary
 
-use crate::hardware::{io::{Cartridge, HEIGHT, WIDTH}, GameBoy};
+use crate::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH}, GameBoy};
 use crate::hardware::io::joypad::Buttons;
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 

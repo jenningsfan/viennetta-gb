@@ -250,14 +250,6 @@ impl PPU {
             self.status &= 0xFC;
         }
 
-        if cycles % 4 != 0 {
-            panic!("Cycles told is {cycles}, which is not a multiple of 4");
-        }
-
-        if self.cycles_line % 4 != 0 {
-            panic!("current dot is {}, which is not a multiple of 4", self.cycles_line);
-        }
-
         interrupts
     }
 

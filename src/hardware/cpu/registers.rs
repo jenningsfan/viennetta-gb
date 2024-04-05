@@ -313,7 +313,7 @@ impl Registers {
 
 #[cfg(test)]
 mod tests {
-    use crate::hardware::io::Cartridge;
+    use crate::hardware::io::cart::Cartridge;
 
     use super::*;
 
