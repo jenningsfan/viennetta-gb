@@ -8,6 +8,7 @@ const RAM_SIZE_ADDR: usize = 0x149;
 enum MapperType {
     None,
     MBC1,
+    MBC3,
 }
 
 impl MapperType {
@@ -15,6 +16,7 @@ impl MapperType {
         match byte {
             0x00 => MapperType::None,
             0x01..=0x03 => MapperType::MBC1,
+            0x11..=0x13 => MapperType::MBC1,
             0x04..=0xFF => MapperType::None, // todo: fill in
         }
     }
@@ -67,6 +69,19 @@ impl Cartridge {
         if self.mapper == MapperType::MBC1 {
             if address >= 0x2000 && address < 0x4000 {
                 let mask = (!self.total_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
+                self.bank_reg = value & mask;
+
+                if self.bank_reg == 0 {
+                    self.bank_reg = 1;
+                }
+
+                //println!("Bank reg become {}", self.bank_reg);
+            }
+        }
+
+        if self.mapper == MapperType::MBC3 {
+            if address >= 0x2000 && address < 0x4000 {
+                let mask = 0x8F;
                 self.bank_reg = value & mask;
 
                 if self.bank_reg == 0 {
