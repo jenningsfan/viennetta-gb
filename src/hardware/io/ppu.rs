@@ -301,6 +301,10 @@ impl PPU {
                     pixel = 0;
                 }
 
+                if self.line_x >= WIDTH as u8 {
+                    break;
+                }
+
                 pixels[self.line_x as usize] = (pixel, Palette::Background);
                 self.line_x += 1;
 
