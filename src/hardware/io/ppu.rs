@@ -265,7 +265,7 @@ impl PPU {
         let mut pixels = [(0, Palette::Background); WIDTH];
         let mut window_occured = false;
 
-        for _ in 0..WIDTH / 8 {
+        for tile_num in 0..(WIDTH / 8) + 1 {
             let window = self.line_x + 7 >= self.win_x && self.line_y >= self.win_y && self.lcdc.contains(LCDC::WinEnable);
 
             let fetcher_x;
@@ -279,7 +279,7 @@ impl PPU {
                 tilemap = self.lcdc.contains(LCDC::WinTileMap);
             }
             else {
-                fetcher_x = (((self.scroll_x / 8) + (self.line_x / 8)) & 0x1F) as usize;
+                fetcher_x = (((self.scroll_x / 8) + (tile_num as u8)) & 0x1F) as usize;
                 fetcher_y = self.line_y.wrapping_add(self.scroll_y) as usize;
                 tilemap = self.lcdc.contains(LCDC::BgTileMap);
             }
@@ -288,8 +288,13 @@ impl PPU {
 
             let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap);
             let tile = self.fetch_tile_data(tile, fetcher_offset, tile_data_area);
+            let scroll_discard = self.scroll_x & 0x7;
 
             for i in 0..8 {
+                if tile_num == 0 && i < scroll_discard + 1 && !window_occured {
+                    continue;
+                }
+
                 let i = 7 - i;
                 let mut pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
                 if !self.lcdc.contains(LCDC::BgWinEnable) {
@@ -298,6 +303,10 @@ impl PPU {
 
                 pixels[self.line_x as usize] = (pixel, Palette::Background);
                 self.line_x += 1;
+
+                if self.line_x >= WIDTH as u8 {
+                    break;
+                }
             }
         }
 
