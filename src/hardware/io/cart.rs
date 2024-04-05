@@ -41,7 +41,7 @@ impl Cartridge {
         }
 
         let mapper = MapperType::from_cart_header(rom[CART_TYPE_ADDR]);
-
+        //dbg!(rom[CART_TYPE_ADDR]);
         // todo: mappable ram
 
         Self {
@@ -53,7 +53,7 @@ impl Cartridge {
     }
 
     pub fn read_rom(&self, address: u16) -> u8 {
-        let address = if address < 0x4000 {
+        let address = if address < 0x4000 || self.mapper == MapperType::None {
             address as usize
         } else {
             address as usize + self.bank_reg as usize * SIXTEEN_KILOBYTES - 0x4000
