@@ -306,7 +306,7 @@ impl CPU {
         
                 if opcode == 0x10 {
                     // stop
-                    todo!("Stop opcode");
+                    panic!("Hit STOP at {}", self.regs.pc)
                 }
             },
             0x1 => {
