@@ -60,7 +60,7 @@ impl MBC for MBC1 {
             }
             _ => panic!("{address} not a valid ROM address")
         };
-        let address = bank as usize * SIXTEEN_KILOBYTES + address as usize & 0x3FFF;
+        let address = bank as usize * SIXTEEN_KILOBYTES + (address as usize & 0x3FFF);
 
         self.rom[address]
     }
@@ -81,7 +81,6 @@ impl MBC for MBC1 {
                 bank &= mask;
 
                 self.rom_bank = (self.rom_bank & 0x60) | bank;
-                println!("Set ROM bank to {}", self.rom_bank);
             }
             0x4000..=0x5FFF => {
                 if self.total_ram_banks == 4 {
@@ -171,14 +170,11 @@ pub struct Cartridge {
 impl Cartridge {
     pub fn new(game_rom: &[u8]) -> Self {
         let rom = game_rom.to_vec();
-        dbg!(rom[0]);
 
         let predicted_rom_size = THIRTY_TWO_KILOBYTES * (1 << rom[ROM_SIZE_ADDR]);
         if rom.len() != predicted_rom_size {
             panic!("Rom loaded is {} bytes but it should be {predicted_rom_size}", rom.len());
         }
-
-        println!("mbc: {}. rom banks: {} ram banks: {}", rom[MBC_TYPE_ADDR], rom[ROM_SIZE_ADDR], rom[RAM_SIZE_ADDR]);
 
         let rom_banks = 1 << (rom[ROM_SIZE_ADDR] + 1) as usize;
         let ram_banks = [0, 0, 1, 4, 16, 8][rom[RAM_SIZE_ADDR] as usize];
@@ -195,7 +191,6 @@ impl Cartridge {
         if mbc_type == 0x00 {
             Box::new(NoMBC::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
         } else if mbc_type >= 0x01 && mbc_type <= 0x03 {
-            println!("MBC1");
             Box::new(MBC1::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
         // Add other conditions for different MBC types as needed
         } else {
