@@ -306,7 +306,7 @@ impl CPU {
         
                 if opcode == 0x10 {
                     // stop
-                    panic!("Hit STOP at {}", self.regs.pc)
+                    panic!("Hit STOP at {:04X}", self.regs.pc)
                 }
             },
             0x1 => {

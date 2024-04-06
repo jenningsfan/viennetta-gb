@@ -41,7 +41,11 @@ impl Cartridge {
         }
 
         let mapper = MapperType::from_cart_header(rom[CART_TYPE_ADDR]);
-        //dbg!(rom[CART_TYPE_ADDR]);
+        
+        if mapper == MapperType::None && total_banks != 2 {
+            panic!("No mapper but {total_banks} banks");
+        }
+
         // todo: mappable ram
 
         Self {
@@ -62,10 +66,6 @@ impl Cartridge {
     }
 
     pub fn write_rom(&mut self, address: u16, value: u8) {
-        // Add mapper support here later
-        // It is left empty on purpose
-        // TODO: MBC
-
         if self.mapper == MapperType::MBC1 {
             if address >= 0x2000 && address < 0x4000 {
                 let mask = (!self.total_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
@@ -74,8 +74,6 @@ impl Cartridge {
                 if self.bank_reg == 0 {
                     self.bank_reg = 1;
                 }
-
-                //println!("Bank reg become {}", self.bank_reg);
             }
         }
 
@@ -87,8 +85,6 @@ impl Cartridge {
                 if self.bank_reg == 0 {
                     self.bank_reg = 1;
                 }
-
-                //println!("Bank reg become {}", self.bank_reg);
             }
         }
     }

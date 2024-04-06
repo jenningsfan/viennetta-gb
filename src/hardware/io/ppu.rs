@@ -291,7 +291,7 @@ impl PPU {
             let scroll_discard = self.scroll_x & 0x7;
 
             for i in 0..8 {
-                if tile_num == 0 && i < scroll_discard + 1 && !window_occured {
+                if tile_num == 0 && i < scroll_discard && !window_occured {
                     continue;
                 }
 
