@@ -1,104 +1,222 @@
-const SIXTEEN_KILOBYTES: usize = 16 * 1024;
+use log::warn;
 
-const CART_TYPE_ADDR: usize = 0x147;
+const EIGHT_KILOBYTES: usize = 8 * 1024;
+const SIXTEEN_KILOBYTES: usize = 16 * 1024;
+const THIRTY_TWO_KILOBYTES: usize = 32 * 1024;
+
+const MBC_TYPE_ADDR: usize = 0x147;
 const ROM_SIZE_ADDR: usize = 0x148;
 const RAM_SIZE_ADDR: usize = 0x149;
 
-#[derive(Debug, PartialEq, Eq)]
-enum MapperType {
-    None,
-    MBC1,
-    MBC3,
+trait MBC: std::fmt::Debug {
+    fn from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Self where Self: Sized;
+    fn read_rom(&self, address: u16) -> u8;
+    fn write_rom(&mut self, address: u16, value: u8);
+    fn read_ram(&self, address: u16) -> u8;
+    fn write_ram(&mut self, address: u16, value: u8);
 }
 
-impl MapperType {
-    fn from_cart_header(byte: u8) -> MapperType {
-        match byte {
-            0x00 => MapperType::None,
-            0x01..=0x03 => MapperType::MBC1,
-            0x11..=0x13 => MapperType::MBC1,
-            0x04..=0xFF => MapperType::None, // todo: fill in
+#[derive(Debug)]
+struct MBC1 {
+    ram_enable: bool,
+    rom_bank: u8,
+    ram_bank: u8,
+    total_rom_banks: u8,
+    total_ram_banks: u8,
+    advanced_bank_mode: bool,
+    rom: Vec<u8>,
+    ram: Vec<u8>,
+}
+
+impl MBC for MBC1 {
+    fn from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Self {
+        let ram_bytes = EIGHT_KILOBYTES * ram_banks;
+        let ram = vec![0; ram_bytes];
+
+        Self {
+            ram_enable: false,
+            rom_bank: 0,
+            ram_bank: 0,
+            total_rom_banks: rom_banks as u8,
+            total_ram_banks: ram_banks as u8,
+            advanced_bank_mode: false,
+            rom,
+            ram,
+        }
+    }
+
+    fn read_rom(&self, address: u16) -> u8 {
+        let bank = match address {
+            0x0000..=0x3FFF => {
+                if self.advanced_bank_mode {
+                    self.rom_bank & 0x60
+                }
+                else {
+                    0
+                }
+            },
+            0x4000..=0x7FFF => {
+                self.rom_bank
+            }
+            _ => panic!("{address} not a valid ROM address")
+        };
+        let address = bank as usize * SIXTEEN_KILOBYTES + address as usize & 0x3FFF;
+
+        self.rom[address]
+    }
+
+    fn write_rom(&mut self, address: u16, value: u8) {
+        match address {
+            0x0000..=0x1FFF => {
+                // RAM enable
+                self.ram_enable = value & 0xA == 0xA;
+            }
+            0x2000..=0x3FFF => {
+                let mut bank = value & 0x1F;
+                if bank == 0 {
+                    bank = 1;
+                }
+
+                let mask = (!self.total_rom_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
+                bank &= mask;
+
+                self.rom_bank = (self.rom_bank & 0x60) | bank;
+                println!("Set ROM bank to {}", self.rom_bank);
+            }
+            0x4000..=0x5FFF => {
+                if self.total_ram_banks == 4 {
+                    self.ram_bank = value & 0x3;
+                }
+                if self.total_rom_banks >= 64 {
+                    self.ram_bank = (self.ram_bank & 0x1F) | ((value & 0x3) << 5);
+                }
+            }
+            0x6000..=0x7FFF => {
+                self.advanced_bank_mode = value & 0x1 == 1;
+            }
+            _ => panic!("{address} not a valid ROM address")
+        }
+    }
+
+    fn read_ram(&self, address: u16) -> u8 {
+        if self.ram_enable {
+            let address = ((self.ram_bank as u16) << 12) | address;
+            self.ram[address as usize]
+        }
+        else {
+            0xFF
+        }
+    }
+
+    fn write_ram(&mut self, address: u16, value: u8) {
+        if self.ram_enable {
+            let address = ((self.ram_bank as u16) << 12) | address;
+            self.ram[address as usize] = value;
+        }
+    }
+}
+
+#[derive(Debug)]
+struct NoMBC {
+    rom: Vec<u8>,
+    ram: Vec<u8>,
+    has_ram: bool,
+}
+
+impl MBC for NoMBC {
+    fn from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Self {
+        if rom_banks != 2 || ram_banks > 1 {
+            panic!("Rom banks must be 2 but is: {rom_banks}. Ram banks should be 0 or 1 but is: {ram_banks}");
+        }
+
+        let ram_bytes = EIGHT_KILOBYTES * ram_banks;
+        let ram = vec![0; ram_bytes];
+
+        Self {
+            rom,
+            ram,
+            has_ram: ram_banks > 0,
+        }
+    }
+
+    fn read_rom(&self, address: u16) -> u8 {
+        self.rom[address as usize]
+    }
+
+    fn write_rom(&mut self, address: u16, value: u8) {
+        // this is a no-op without an mbc
+    }
+
+    fn read_ram(&self, address: u16) -> u8 {
+        if self.has_ram {
+            self.ram[address as usize]
+        }
+        else {
+            0xFF
+        }
+    }
+
+    fn write_ram(&mut self, address: u16, value: u8) {
+        if self.has_ram {
+            self.ram[address as usize] = value;
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Cartridge {
-    rom: Vec<u8>,
-    mapper: MapperType,
-    bank_reg: u8,
-    total_banks: u16,
+    mbc: Box<dyn MBC>,
 }
 
 impl Cartridge {
     pub fn new(game_rom: &[u8]) -> Self {
         let rom = game_rom.to_vec();
+        dbg!(rom[0]);
 
-        let predicted_rom_size = SIXTEEN_KILOBYTES * 2 * (1 << rom[0x148]);
-        let total_banks = 1 << rom[0x148] + 1;
+        let predicted_rom_size = THIRTY_TWO_KILOBYTES * (1 << rom[ROM_SIZE_ADDR]);
         if rom.len() != predicted_rom_size {
             panic!("Rom loaded is {} bytes but it should be {predicted_rom_size}", rom.len());
         }
 
-        let mapper = MapperType::from_cart_header(rom[CART_TYPE_ADDR]);
-        
-        if mapper == MapperType::None && total_banks != 2 {
-            panic!("No mapper but {total_banks} banks");
-        }
+        println!("mbc: {}. rom banks: {} ram banks: {}", rom[MBC_TYPE_ADDR], rom[ROM_SIZE_ADDR], rom[RAM_SIZE_ADDR]);
 
-        // todo: mappable ram
+        let rom_banks = 1 << (rom[ROM_SIZE_ADDR] + 1) as usize;
+        let ram_banks = [0, 0, 1, 4, 16, 8][rom[RAM_SIZE_ADDR] as usize];
+
+        let mbc = Self::mbc_from_cart_header(rom[MBC_TYPE_ADDR],
+            rom_banks, ram_banks, rom);
 
         Self {
-            rom,
-            mapper,
-            bank_reg: 0,
-            total_banks,
+            mbc,
+        }
+    }
+
+    fn mbc_from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Box<dyn MBC> {
+        if mbc_type == 0x00 {
+            Box::new(NoMBC::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
+        } else if mbc_type >= 0x01 && mbc_type <= 0x03 {
+            println!("MBC1");
+            Box::new(MBC1::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
+        // Add other conditions for different MBC types as needed
+        } else {
+            warn!("Unsopported MBC {mbc_type:02X}. Defaulting to no mbc");
+            Box::new(NoMBC::from_cart_header(mbc_type, rom_banks, ram_banks, rom)) // Default case
         }
     }
 
     pub fn read_rom(&self, address: u16) -> u8 {
-        let address = if address < 0x4000 || self.mapper == MapperType::None {
-            address as usize
-        } else {
-            address as usize + self.bank_reg as usize * SIXTEEN_KILOBYTES - 0x4000
-        };
-        self.rom[address]
+        self.mbc.read_rom(address)
     }
 
     pub fn write_rom(&mut self, address: u16, value: u8) {
-        if self.mapper == MapperType::MBC1 {
-            if address >= 0x2000 && address < 0x4000 {
-                let mask = (!self.total_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
-                self.bank_reg = value & mask;
-
-                if self.bank_reg == 0 {
-                    self.bank_reg = 1;
-                }
-            }
-        }
-
-        if self.mapper == MapperType::MBC3 {
-            if address >= 0x2000 && address < 0x4000 {
-                let mask = 0x8F;
-                self.bank_reg = value & mask;
-
-                if self.bank_reg == 0 {
-                    self.bank_reg = 1;
-                }
-            }
-        }
+        self.mbc.write_rom(address, value);
     }
 
-    pub fn read_ram(&self, _address: u16) -> u8 {
-        // This would be external ram
-        // Left empty on purpose
-        // TODO: MBC
-        0xFF
+    pub fn read_ram(&self, address: u16) -> u8 {
+        self.mbc.read_ram(address)
     }
 
-    pub fn write_ram(&mut self, _address: u16, _value: u8) {
-        // Add mapper support here later
-        // It is left empty on purpose
-        // TODO: MBC
+    pub fn write_ram(&mut self, address: u16, value: u8) {
+        self.mbc.write_ram(address, value);
     }
 }
