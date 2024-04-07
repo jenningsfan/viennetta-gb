@@ -64,7 +64,7 @@ pub struct MMU {
     ram: RAM,
     serial: Serial,
     pub timer: Timer,
-    cart: Cartridge,
+    pub cart: Cartridge,
     pub joypad: Joypad,
     pub int_enable: Interrupts,
     pub int_flag: Interrupts,

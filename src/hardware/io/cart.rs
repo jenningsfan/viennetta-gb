@@ -14,6 +14,7 @@ trait MBC: std::fmt::Debug {
     fn write_rom(&mut self, address: u16, value: u8);
     fn read_ram(&self, address: u16) -> u8;
     fn write_ram(&mut self, address: u16, value: u8);
+    fn get_save_data(&self) -> Option<&Vec<u8>>;
 }
 
 #[derive(Debug)]
@@ -113,6 +114,15 @@ impl MBC for MBC1 {
             self.ram[address as usize] = value;
         }
     }
+
+    fn get_save_data(&self) -> Option<&Vec<u8>> {
+        if self.total_ram_banks > 0 {
+            Some(&self.ram)
+        }
+        else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -160,7 +170,7 @@ impl MBC for MBC3 {
                 self.ram_enabled = value & 0xA == 0xA;
             }
             0x2000..=0x3FFF => {
-                let mut bank = value;
+                let mut bank = value & 0x7F;
                 if bank == 0 {
                     bank = 1;
                 }
@@ -214,6 +224,15 @@ impl MBC for MBC3 {
             }
         }
     }
+
+    fn get_save_data(&self) -> Option<&Vec<u8>> {
+        if self.total_ram_banks > 0 {
+            Some(&self.ram)
+        }
+        else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -259,6 +278,15 @@ impl MBC for NoMBC {
     fn write_ram(&mut self, address: u16, value: u8) {
         if self.has_ram {
             self.ram[address as usize] = value;
+        }
+    }
+
+    fn get_save_data(&self) -> Option<&Vec<u8>> {
+        if self.has_ram {
+            Some(&self.ram)
+        }
+        else {
+            None
         }
     }
 }
@@ -318,5 +346,9 @@ impl Cartridge {
 
     pub fn write_ram(&mut self, address: u16, value: u8) {
         self.mbc.write_ram(address, value);
+    }
+
+    pub fn get_save_data(&self) -> Option<&Vec<u8>> {
+        self.mbc.get_save_data()
     }
 }

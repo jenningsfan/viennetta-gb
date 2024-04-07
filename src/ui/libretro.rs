@@ -8,13 +8,18 @@ use crate::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH}, GameBoy};
 use crate::hardware::io::joypad::Buttons;
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 
-fn convert_data_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
+fn convert_c_point_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
     // Safety: Ensure that the pointer is valid and doesn't cause UB
     let data_slice = unsafe { std::slice::from_raw_parts(data as *const u8, len) };
 
     // Convert the slice to a Vec<u8>
     data_slice.to_vec()
 }
+
+fn convert_vec_to_c_point(data: &Vec<u8>) -> *mut c_void {
+    let ptr = data.as_ptr();
+    ptr as *mut c_void
+} 
 
 #[derive(CoreOptions)]
 struct ViennettaCore {
@@ -69,10 +74,24 @@ impl Core for ViennettaCore {
                 panic!("game.data is NULL");
             }
 
-            let data = convert_data_to_vec(game.data, game.size);
+            let data = convert_c_point_to_vec(game.data, game.size);
             self.gameboy = GameBoy::new(Cartridge::new(&data));
         }
         Ok(())
+    }
+
+    fn get_memory_data(&mut self, data_type: std::os::raw::c_uint, _ctx: &mut GetMemoryDataContext) -> *mut std::os::raw::c_void {
+        let data = self.gameboy.get_save_data();
+        if let Some(data) = data {    
+            convert_vec_to_c_point(data)
+        }
+        else {
+            std::ptr::null::<*mut c_void>() as *mut c_void
+        }
+    }
+
+    fn get_memory_size(&mut self, data_type: std::os::raw::c_uint, _ctx: &mut GetMemorySizeContext) -> usize {
+        self.gameboy.get_save_data().unwrap_or(&vec![]).len()
     }
 
     #[inline]

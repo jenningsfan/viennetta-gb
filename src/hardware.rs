@@ -37,4 +37,8 @@ impl GameBoy {
 
         cycles
     }
+
+    pub fn get_save_data(&self) -> Option<&Vec<u8>> {
+        self.mmu.cart.get_save_data()
+    }
 }
