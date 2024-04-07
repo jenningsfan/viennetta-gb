@@ -160,20 +160,15 @@ impl MBC for MBC3 {
                 self.ram_enabled = value & 0xA == 0xA;
             }
             0x2000..=0x3FFF => {
-                let mut bank = value & 0x8F;
+                let mut bank = value;
                 if bank == 0 {
                     bank = 1;
                 }
                 
-                let mask = (!self.total_rom_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
-                bank &= mask;
-                
                 self.rom_bank = bank;
-                println!("Switched to rom bank {bank}");
             }
             0x4000..=0x5FFF => {
                 self.ram_bank = value;
-                println!("Switched to ram bank {value}");
             }
             0x6000..=0x7FFF => {
                 // TODO: RTC
@@ -301,7 +296,7 @@ impl Cartridge {
             Box::new(MBC1::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
         }
         else if mbc_type >= 0x0F && mbc_type <= 0x13 {
-            Box::new(MBC1::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
+            Box::new(MBC3::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
         }
         else {
             warn!("Unsopported MBC {mbc_type:02X}. Defaulting to no mbc");
