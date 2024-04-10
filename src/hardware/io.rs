@@ -8,6 +8,7 @@ mod timer;
 use bitflags::bitflags;
 pub use ppu::{WIDTH, HEIGHT, LcdPixels};
 use self::ppu::PPU;
+use self::apu::APU;
 use self::serial::Serial;
 use self::timer::Timer;
 use self::joypad::Joypad;
@@ -61,6 +62,7 @@ bitflags! {
 #[derive(Debug)]
 pub struct MMU {
     pub ppu: PPU,
+    apu: APU,
     ram: RAM,
     serial: Serial,
     pub timer: Timer,
@@ -77,6 +79,7 @@ impl MMU {
         Self {
             ppu: PPU::default(),
             ram: RAM::default(),
+            apu: APU::default(),
             serial: Serial::default(),
             timer: Timer::default(),
             joypad: Joypad::default(),
@@ -126,7 +129,9 @@ impl MMU {
             0xFF01 => self.serial.read_data(),                                  // Serial Data
             0xFF02 => self.serial.read_control(),                               // Serial Control
             0xFF04..=0xFF07 => self.timer.read_io(address),                 // Timer
-            0xFF46 => self.last_dma_value,                                  // OAM DMA
+            0xFF10..=0xFF26 => self.apu.read_io(address),                       // APU
+            0xFF30..=0xFF3F => self.apu.read_wave(address),                       // APU Wave Pattern
+            0xFF46 => self.last_dma_value,                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.read_io(address),                       // PPU
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
@@ -148,6 +153,8 @@ impl MMU {
             0xFF01 => self.serial.write_data(value),                                    // Serial Data
             0xFF02 => self.serial.write_control(value),                                 // Serial Control
             0xFF04..=0xFF07 => self.timer.write_io(address, value),                 // Timer
+            0xFF10..=0xFF26 => self.apu.write_io(address, value),                       // APU
+            0xFF30..=0xFF3F => self.apu.write_wave(address, value),                       // APU Wave Pattern
             0xFF46 => self.oam_dma(value),                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.write_io(address, value),                       // PPU
             0xFF0F => self.int_flag = Interrupts::from_bits(value & 0x1F).unwrap(),     // Interrupt Enable

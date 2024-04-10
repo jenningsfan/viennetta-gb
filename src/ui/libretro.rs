@@ -69,6 +69,9 @@ impl Core for ViennettaCore {
         ) -> Result<(), Box<dyn std::error::Error>> {
         ctx.set_pixel_format(PixelFormat::RGB565);
 
+        let gctx: GenericContext = ctx.into();
+        gctx.enable_audio_callback();
+
         if let Some(game) = game {
             if game.data.is_null() {
                 panic!("game.data is NULL");
@@ -100,6 +103,21 @@ impl Core for ViennettaCore {
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
         ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
     }
+
+    // fn on_write_audio(&mut self, ctx: &mut AudioContext) {
+    //     //println!("audio");
+    //     let mut samples = vec![];
+
+    //     for _ in 0..30 {
+    //         samples.push(100);
+    //     }
+
+    //     for _ in 0..30 {
+    //         samples.push(0);
+    //     }
+
+    //     ctx.batch_audio_samples(&samples);
+    // }
 }
 
 impl ViennettaCore {
