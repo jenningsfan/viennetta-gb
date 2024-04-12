@@ -1,7 +1,7 @@
 pub mod joypad;
 pub mod ppu;
 pub mod cart;
-mod apu;
+pub mod apu;
 mod serial;
 mod timer;
 
@@ -14,6 +14,9 @@ use self::timer::Timer;
 use self::joypad::Joypad;
 use super::boot_rom::BOOT_ROM;
 use self::cart::Cartridge;
+
+pub const T_CYCLES_RATE: u32 = 4 * 1024 * 1024;
+pub const M_CYCLES_RATE: u32 = 1 * 1024 * 1024;
 
 #[derive(Debug)]
 struct RAM {
@@ -62,7 +65,7 @@ bitflags! {
 #[derive(Debug)]
 pub struct MMU {
     pub ppu: PPU,
-    apu: APU,
+    pub apu: APU,
     ram: RAM,
     serial: Serial,
     pub timer: Timer,
@@ -97,6 +100,7 @@ impl MMU {
         for _ in 0..cycles {
             self.int_flag |= self.ppu.run_cycles(4);
             self.int_flag |= self.timer.run_cycles(4);
+            self.apu.run_cycles(4);
 
             // if let Some(addr) = self.dma_transfer_offset {
             //     self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));

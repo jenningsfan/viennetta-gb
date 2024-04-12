@@ -7,6 +7,7 @@ use rust_libretro::{
 use crate::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH}, GameBoy};
 use crate::hardware::io::joypad::Buttons;
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
+use crate::hardware::io::apu::SAMPLE_RATE;
 
 fn convert_c_point_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
     // Safety: Ensure that the pointer is valid and doesn't cause UB
@@ -49,7 +50,7 @@ impl Core for ViennettaCore {
             },
             timing: retro_system_timing {
                 fps: 60.0,
-                sample_rate: 0.0, // TODO: CHANGE FOR AUDIO SUPPORT
+                sample_rate: SAMPLE_RATE as f64,
             },
         }
     }
@@ -69,8 +70,8 @@ impl Core for ViennettaCore {
         ) -> Result<(), Box<dyn std::error::Error>> {
         ctx.set_pixel_format(PixelFormat::RGB565);
 
-        let gctx: GenericContext = ctx.into();
-        gctx.enable_audio_callback();
+        //let gctx: GenericContext = ctx.into();
+        //gctx.enable_audio_callback();
 
         if let Some(game) = game {
             if game.data.is_null() {
@@ -102,22 +103,29 @@ impl Core for ViennettaCore {
         self.update_gb_joypad(ctx);
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
         ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
+        //println!("FRAme");    
+
+        let actx: AudioContext = ctx.into();
+        println!("{}", self.gameboy.mmu.apu.sample_buf.len());
+        actx.batch_audio_samples(&self.gameboy.mmu.apu.sample_buf);
+        self.gameboy.mmu.apu.sample_buf = vec![];
     }
 
-    // fn on_write_audio(&mut self, ctx: &mut AudioContext) {
-    //     //println!("audio");
-    //     let mut samples = vec![];
-
-    //     for _ in 0..30 {
-    //         samples.push(100);
-    //     }
-
-    //     for _ in 0..30 {
-    //         samples.push(0);
-    //     }
-
-    //     ctx.batch_audio_samples(&samples);
-    // }
+    fn on_write_audio(&mut self, ctx: &mut AudioContext) {
+        // //println!("audio FRAme");
+        // println!("{}", self.gameboy.mmu.apu.sample_buf.len());
+        // if self.gameboy.mmu.apu.sample_buf.len() < (SAMPLE_RATE as usize / 60) * 2 {
+        //     return;
+        // }
+        // // if self.gameboy.mmu.apu.sample_buf.len() < 1024 {
+        // //     return;
+        // // }
+        // //println!("before audio");
+        // //println!("{}", self.gameboy.mmu.apu.sample_buf.len());
+        // ctx.batch_audio_samples(&self.gameboy.mmu.apu.sample_buf);
+        // self.gameboy.mmu.apu.sample_buf = vec![];
+        // //println!("after audio");
+    }
 }
 
 impl ViennettaCore {

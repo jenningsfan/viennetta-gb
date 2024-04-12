@@ -27,6 +27,8 @@ impl GameBoy {
             total_cycles += self.run_instruction() as u16;
         }
         //println!("FRAME FRAME FRAMETY FRAME Y: {} X: {} CYCLES: {}", self.mmu.ppu.line_y, self.mmu.ppu.line_x, self.mmu.ppu.cycles_line);
+        // println!("{}", self.mmu.apu.sample_buf.len());
+        // self.mmu.apu.sample_buf = vec![];
         self.mmu.get_frame()
     }
 
