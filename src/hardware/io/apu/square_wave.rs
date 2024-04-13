@@ -1,3 +1,4 @@
+use crate::hardware::io::apu::warn;
 const WAVE_PATTERNS: [u8; 4] = [0b00000001, 0b00000011, 0b00001111, 0b11111100];
 
 #[derive(Debug, Default)]
@@ -7,6 +8,8 @@ pub struct SquareWave {
     wave_position: u8,
     frequency_timer: u16,
     frequency: u16,
+    pub left_pan: bool,
+    pub right_pan: bool
 }
 
 impl SquareWave {
@@ -24,6 +27,18 @@ impl SquareWave {
 
             self.frequency_timer = (2048 - self.frequency) * 4;
         }
+    }
+
+    pub fn read_io(&self, address: u16) -> u8 {
+        match address {
+            _ => { warn!("{address} not valid APU io address"); 0xFF }
+        }
+    }
+
+    pub fn write_io(&mut self, address: u16, value: u8) {
+        match address {
+            _ => warn!("{address} not valid APU io address")
+        };
     }
 
     pub fn get_amplitude(&self) -> u8 {

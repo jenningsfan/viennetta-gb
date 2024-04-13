@@ -106,7 +106,7 @@ impl Core for ViennettaCore {
         //println!("FRAme");    
 
         let actx: AudioContext = ctx.into();
-        println!("{}", self.gameboy.mmu.apu.sample_buf.len());
+        //println!("{}", self.gameboy.mmu.apu.sample_buf.len());
         actx.batch_audio_samples(&self.gameboy.mmu.apu.sample_buf);
         self.gameboy.mmu.apu.sample_buf = vec![];
     }
