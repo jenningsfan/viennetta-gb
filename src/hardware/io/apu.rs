@@ -46,6 +46,16 @@ impl APU {
                 self.channel1.tick_length_timer();
                 self.channel2.tick_length_timer();
             }
+
+            if self.frame_sequencer_step == 7 {
+                self.channel1.tick_volume_envelope();
+                self.channel2.tick_volume_envelope();
+            }
+
+            if self.frame_sequencer_step == 2 || self.frame_sequencer_step == 6 {
+                self.channel1.tick_freq_sweep();
+                self.channel2.tick_freq_sweep();
+            }
         }
 
         self.channel1.run_cycle();
