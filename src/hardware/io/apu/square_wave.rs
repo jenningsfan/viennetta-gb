@@ -141,7 +141,11 @@ impl SquareWave {
     pub fn read_io(&self, address: u16) -> u8 {
         // TODO: some of these are supposed to be write-only?
         match address & 0xF {   // mask to only get the last nibble to get register regardless of channel1 or channel2
-            0 => { warn!("TODO: sweep"); 0xFF }, // TODO: sweep
+            0 => {
+                (self.sweep_period << 4)
+                    | if self.sweep_is_downwards { 0x8 } else { 0 }
+                    | self.sweep_change
+            }, // TODO: sweep
             1 => {
                 (self.wave_duty << 6) | 0x3F
             },

@@ -21,14 +21,15 @@ impl CustomWave {
             return;
         }
 
+        //println!("ticking");
         self.frequency_timer -= 1;
         if self.frequency_timer == 0 {
             self.wave_position += 1;
-            if self.wave_position > 32 {
+            //println!("increased wave pos");
+            if self.wave_position > 31 {
                 self.wave_position = 0;
             }
 
-            self.frequency_timer = (2048 - self.frequency) * 4;
         }
     }
 
@@ -37,6 +38,8 @@ impl CustomWave {
         if self.length_timer == 0 {
             self.length_timer = 256;
         }
+        self.frequency_timer = (2048 - self.frequency) * 2;
+
     }
 
     pub fn tick_length_timer(&mut self) {
@@ -51,15 +54,27 @@ impl CustomWave {
     }
 
     pub fn get_amplitude(&self) -> f32 {
-        let mut sample = self.wave[self.wave_position as usize];
+        if !self.enable {
+            return 0.0;
+        }
+
+        let mut sample = self.wave[self.wave_position as usize / 2];
         if self.wave_position % 2 == 0 {
             sample >>= 4;
         }
         else {
             sample &= 0xF;
         }
-
-        sample >>= self.volume;
+        // if self.enable && sample != 1 {
+        //     println!("{:X}", sample);
+        // }
+        let vol_shift = if self.volume == 0 {
+            4
+        }
+        else {
+            self.volume - 1
+        };
+        sample >>= vol_shift;
 
         let scaled = (sample as f32 / 7.5) - 1.0;
 
@@ -67,31 +82,30 @@ impl CustomWave {
     }
 
     pub fn read_io(&self, address: u16) -> u8 {
-        match address {
+        match address & 0xF {
+            0xA => if self.enable { 0xFF } else { 0x7F },
+            0xB => 0xFF,
+            0xC => (self.volume << 4) | 0x9F,
+            0xD => 0xFF,
+            0xE => if self.length_timer_enabled { 0xFF } else { 0xBF },
             _ => { warn!("{address} not valid APU io address"); 0xFF }
         }
     }
 
     pub fn write_io(&mut self, address: u16, value: u8) {
         match address & 0xF {
-            0 => self.enable = value & 0x80 == 0x80,
-            1 => {
+            0xA => self.enable = value & 0x80 == 0x80,
+            0xB => {
                 self.initial_length_timer = value as u16 & 0x3F;
                 self.length_timer = 256 - self.initial_length_timer;
             },
-            2 => {
+            0xC => {
                 self.volume = value >> 4;
-                if self.volume == 0 {
-                    self.volume = 4;
-                }
-                else {
-                    self.volume -= 1;
-                }
             },
-            3 => {
+            0xD => {
                 self.frequency = (self.frequency & 0x700) | value as u16;
             },
-            4 => {
+            0xE => {
                 if value & 0x80 == 0x80 {
                     self.trigger_event();
                 }

@@ -57,7 +57,6 @@ impl APU {
 
             if self.frame_sequencer_step == 2 || self.frame_sequencer_step == 6 {
                 self.channel1.tick_freq_sweep();
-                self.channel2.tick_freq_sweep();
             }
         }
 
@@ -92,7 +91,7 @@ impl APU {
             0xFF10..=0xFF14 => self.channel1.read_io(address),
             0xFF21..=0xFF24 => self.channel2.read_io(address),
             0xFF1A..=0xFF1E => self.channel3.read_io(address),
-            0xFF20..=0xFF23 => self.channel2.read_io(address),
+            0xFF20..=0xFF23 => self.channel4.read_io(address),
             _ => { warn!("{address} not valid APU io address"); 0xFF }
         }
     }
@@ -105,7 +104,7 @@ impl APU {
             0xFF10..=0xFF14 => self.channel1.write_io(address, value),
             0xFF21..=0xFF24 => self.channel2.write_io(address, value),
             0xFF1A..=0xFF1E => self.channel3.write_io(address, value),
-            0xFF20..=0xFF23 => self.channel2.write_io(address, value),
+            0xFF20..=0xFF23 => self.channel4.write_io(address, value),
             _ => warn!("{address} not valid APU io address")
         };
     }
