@@ -22,6 +22,8 @@ pub struct APU {
     channel4: WhiteNoise,
     pub sample_buf: SampleBuffer,
     sampling_timer: u8,
+    frame_sequencer_cycle: u16,
+    frame_sequencer_step: u8,
 }
 
 impl APU {
@@ -32,23 +34,34 @@ impl APU {
     }
     
     pub fn run_cycle(&mut self) {
+        self.frame_sequencer_cycle += 1;
+        if self.frame_sequencer_cycle == 8192 { // TODO: falling edge bit 5 of div. shouldn't make a difference though
+            self.frame_sequencer_cycle = 0;
+            self.frame_sequencer_step += 1;
+            if self.frame_sequencer_step == 8 {
+                self.frame_sequencer_step = 0;
+            }
+
+            if self.frame_sequencer_step % 2 == 0 {
+                self.channel1.tick_length_timer();
+                self.channel2.tick_length_timer();
+            }
+        }
+
         self.channel1.run_cycle();
+        self.channel2.run_cycle();
 
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
             self.sampling_timer = 0;
-            let mut sample = 0;
+            let mut sample: f32 = 0.0;
 
-            if self.channel1.enable {
-                sample = self.channel1.get_amplitude() as i16;
-                if sample == 1 {
-                    sample = i16::MAX;
-                }
-                else {
-                    sample = i16::MIN;
-                }
-            }
+            sample += self.channel1.get_amplitude();
+            sample += self.channel2.get_amplitude();
 
+            sample /= 2.0;
+
+            let sample = (sample * (i16::MAX as f32)) as i16;
             self.sample_buf.push(sample);
             self.sample_buf.push(sample);
 
