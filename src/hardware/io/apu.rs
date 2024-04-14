@@ -2,7 +2,9 @@ use log::warn;
 use super::T_CYCLES_RATE;
 
 mod square_wave;
+mod custom_wave;
 use square_wave::SquareWave;
+use custom_wave::CustomWave;
 
 pub const SAMPLE_RATE: u16 = 48000;
 const SAMPLING_TIMER_INTERVAL: u32 = T_CYCLES_RATE / SAMPLE_RATE as u32;
@@ -45,6 +47,7 @@ impl APU {
             if self.frame_sequencer_step % 2 == 0 {
                 self.channel1.tick_length_timer();
                 self.channel2.tick_length_timer();
+                self.channel3.tick_length_timer();
             }
 
             if self.frame_sequencer_step == 7 {
@@ -60,6 +63,7 @@ impl APU {
 
         self.channel1.run_cycle();
         self.channel2.run_cycle();
+        self.channel3.run_cycle();
 
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
@@ -68,8 +72,9 @@ impl APU {
 
             sample += self.channel1.get_amplitude();
             sample += self.channel2.get_amplitude();
+            sample += self.channel3.get_amplitude();
 
-            sample /= 2.0;
+            sample /= 3.0;
 
             let sample = (sample * (i16::MAX as f32)) as i16;
             self.sample_buf.push(sample);
@@ -106,11 +111,11 @@ impl APU {
     }
 
     pub fn read_wave(&self, address: u16) -> u8 {
-        0xFF
+        self.channel3.read_wave(address)
     }
 
     pub fn write_wave(&mut self, address: u16, value: u8) {
-        
+        self.channel3.write_wave(address, value);
     }
 
     fn read_pan_reg(&self) -> u8 {
@@ -150,27 +155,6 @@ impl APU {
     fn write_vol_reg(&mut self, value: u8) {
         self.right_vol = value & 0x7;
         self.left_vol = (value >> 4) & 0x7;
-    }
-}
-
-#[derive(Debug, Default)]
-struct CustomWave {
-    enable: bool,
-    right_pan: bool,
-    left_pan: bool,
-}
-
-impl CustomWave {
-    pub fn read_io(&self, address: u16) -> u8 {
-        match address {
-            _ => { warn!("{address} not valid APU io address"); 0xFF }
-        }
-    }
-
-    pub fn write_io(&mut self, address: u16, value: u8) {
-        match address {
-            _ => warn!("{address} not valid APU io address")
-        };
     }
 }
 

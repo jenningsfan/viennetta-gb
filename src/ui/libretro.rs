@@ -103,10 +103,8 @@ impl Core for ViennettaCore {
         self.update_gb_joypad(ctx);
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
         ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
-        //println!("FRAme");    
 
         let actx: AudioContext = ctx.into();
-        //println!("{}", self.gameboy.mmu.apu.sample_buf.len());
         actx.batch_audio_samples(&self.gameboy.mmu.apu.sample_buf);
         self.gameboy.mmu.apu.sample_buf = vec![];
     }
