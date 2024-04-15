@@ -136,6 +136,11 @@ impl SquareWave {
                 self.enable = false;
             }
         }
+
+        // println!("Frequency: {}", self.frequency);
+        // println!("Volume: {}", self.current_volume);
+        // println!("Envelope period: {}", self.envelope_period);
+        // println!("Duty cycle: {}\n", self.wave_duty);
     }
 
     pub fn read_io(&self, address: u16) -> u8 {
@@ -150,7 +155,7 @@ impl SquareWave {
                 (self.wave_duty << 6) | 0x3F
             },
             2 => {
-                (self.initial_volume << 6)
+                (self.initial_volume << 4)
                     | if self.envelope_is_increase { 0x8 } else { 0 }
                     | self.envelope_period
             }
@@ -177,7 +182,7 @@ impl SquareWave {
                 self.length_timer = 64 - self.initial_length_timer;
             },
             2 => {
-                self.initial_volume = value >> 6;
+                self.initial_volume = value >> 4;
                 self.envelope_is_increase = value & 0x8 == 0x8;
                 self.envelope_period = value & 0x7;
             },
@@ -185,11 +190,11 @@ impl SquareWave {
                 self.frequency = (self.frequency & 0x700) | value as u16;
             },
             4 => {
+                self.length_timer_enabled = value & 0x40 == 0x40;
+                self.frequency = ((value as u16 & 0x7) << 8) | (self.frequency & 0xFF);
                 if value & 0x80 == 0x80 {
                     self.trigger_event();
                 }
-                self.length_timer_enabled = value & 0x40 == 0x40;
-                self.frequency = ((value as u16 & 0x3) << 8) | (self.frequency & 0xFF);
             },
             _ => warn!("{address} not valid APU io address")
         };
