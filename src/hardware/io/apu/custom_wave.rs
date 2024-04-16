@@ -24,9 +24,11 @@ impl CustomWave {
         //println!("ticking");
         self.frequency_timer -= 1;
         if self.frequency_timer == 0 {
+            self.frequency_timer = (2048 - self.frequency) * 2;
             self.wave_position += 1;
             //println!("increased wave pos");
             if self.wave_position > 31 {
+                //println!("Wave wrapped round");
                 self.wave_position = 0;
             }
 
@@ -34,12 +36,15 @@ impl CustomWave {
     }
 
     pub fn trigger_event(&mut self) {
+        //println!("wave triggered");
         self.enable = true;
         if self.length_timer == 0 {
             self.length_timer = 256;
         }
         self.frequency_timer = (2048 - self.frequency) * 2;
-
+        //println!("Frequency: {}", self.frequency);
+        // println!("Volume: {}", self.volume);
+        // println!("Wave: {}", self.wave.map(|item| format!("{:02X}", item)).join(" "));
     }
 
     pub fn tick_length_timer(&mut self) {
@@ -77,7 +82,10 @@ impl CustomWave {
         sample >>= vol_shift;
 
         let scaled = (sample as f32 / 7.5) - 1.0;
-
+        //dbg!(scaled);
+        // if scaled < -1.0 || scaled > 1.0 {
+        //     println!("{scaled}????");
+        // }
         scaled
     }
 
@@ -85,7 +93,7 @@ impl CustomWave {
         match address & 0xF {
             0xA => if self.enable { 0xFF } else { 0x7F },
             0xB => 0xFF,
-            0xC => (self.volume << 4) | 0x9F,
+            0xC => (self.volume << 5) | 0x9F,
             0xD => 0xFF,
             0xE => if self.length_timer_enabled { 0xFF } else { 0xBF },
             _ => { warn!("{address} not valid APU io address"); 0xFF }
@@ -96,21 +104,21 @@ impl CustomWave {
         match address & 0xF {
             0xA => self.enable = value & 0x80 == 0x80,
             0xB => {
-                self.initial_length_timer = value as u16 & 0x3F;
+                self.initial_length_timer = value as u16;
                 self.length_timer = 256 - self.initial_length_timer;
             },
             0xC => {
-                self.volume = value >> 4;
+                self.volume = value >> 5;
             },
             0xD => {
                 self.frequency = (self.frequency & 0x700) | value as u16;
             },
             0xE => {
+                self.length_timer_enabled = value & 0x40 == 0x40;
+                self.frequency = ((value as u16 & 0x7) << 8) | (self.frequency & 0xFF);
                 if value & 0x80 == 0x80 {
                     self.trigger_event();
                 }
-                self.length_timer_enabled = value & 0x40 == 0x40;
-                self.frequency = ((value as u16 & 0x3) << 8) | (self.frequency & 0xFF);
             },
             _ => warn!("{address} not valid APU io address")
         };

@@ -59,8 +59,6 @@ impl Core for ViennettaCore {
         if !initial {
             return;
         }
-
-        ctx.set_support_no_game(true);
     }
 
     fn on_load_game(
