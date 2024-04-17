@@ -58,9 +58,9 @@ impl CustomWave {
         }
     }
 
-    pub fn get_amplitude(&self) -> f32 {
+    pub fn get_amplitude(&self) -> (u8, u8) {
         if !self.enable {
-            return 0.0;
+            return (0, 0);
         }
 
         let mut sample = self.wave[self.wave_position as usize / 2];
@@ -81,12 +81,10 @@ impl CustomWave {
         };
         sample >>= vol_shift;
 
-        let scaled = (sample as f32 / 7.5) - 1.0;
-        //dbg!(scaled);
-        // if scaled < -1.0 || scaled > 1.0 {
-        //     println!("{scaled}????");
-        // }
-        scaled
+        let left = if self.left_pan { sample } else { 0 };
+        let right = if self.right_pan { sample } else { 0 };
+
+        (left, right)
     }
 
     pub fn read_io(&self, address: u16) -> u8 {

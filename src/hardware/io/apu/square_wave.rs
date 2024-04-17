@@ -200,15 +200,17 @@ impl SquareWave {
         };
     }
 
-    pub fn get_amplitude(&self) -> f32 {
+    pub fn get_amplitude(&self) -> (u8, u8) {
         if !self.enable {
-            return 0.0;
+            return (0, 0);
         }
         
         let mut amplitude = (WAVE_PATTERNS[self.wave_duty as usize] >> self.wave_position) & 1;
         amplitude *= self.current_volume;
-        let scaled = (amplitude as f32 / 7.5) - 1.0;
 
-        scaled
+        let left = if self.left_pan { amplitude } else { 0 };
+        let right = if self.right_pan { amplitude } else { 0 };
+
+        (left, right)
     }
 }

@@ -3,8 +3,10 @@ use super::T_CYCLES_RATE;
 
 mod square_wave;
 mod custom_wave;
+mod white_noise;
 use square_wave::SquareWave;
 use custom_wave::CustomWave;
+use white_noise::WhiteNoise;
 
 pub const SAMPLE_RATE: u16 = 48000;
 const SAMPLING_TIMER_INTERVAL: u32 = T_CYCLES_RATE / SAMPLE_RATE as u32;
@@ -67,17 +69,29 @@ impl APU {
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
             self.sampling_timer = 0;
-            let mut sample: f32 = 0.0;
+            let mut left: u8 = 0;
+            let mut right: u8 = 0;
 
-            sample += self.channel1.get_amplitude();
-            sample += self.channel2.get_amplitude();
-            sample += self.channel3.get_amplitude();
+            // yes I know that I'm calling it twice but the compiler should hopefully optimise it out
+            // TODO: check that that actually happens
+            left += self.channel1.get_amplitude().0;
+            right += self.channel1.get_amplitude().1;
+            left += self.channel2.get_amplitude().0;
+            right += self.channel2.get_amplitude().1;
+            left += self.channel3.get_amplitude().0;
+            right += self.channel3.get_amplitude().1;
+            // left += self.channel4.get_amplitude().0;
+            // right += self.channel4.get_amplitude().1;
 
-            sample /= 3.0;
+            left /= 4;
+            right /= 4;
+            left *= self.left_vol;
+            right *= self.right_vol;
 
-            let sample = (sample * (i16::MAX as f32)) as i16;
-            self.sample_buf.push(sample);
-            self.sample_buf.push(sample);
+            let left = (left as i16 * (i16::MAX / 105));
+            let right = (right as i16 * (i16::MAX / 105));
+            self.sample_buf.push(left);
+            self.sample_buf.push(right);
 
             //println!("pushed samples");
         }
@@ -154,26 +168,5 @@ impl APU {
     fn write_vol_reg(&mut self, value: u8) {
         self.right_vol = value & 0x7;
         self.left_vol = (value >> 4) & 0x7;
-    }
-}
-
-#[derive(Debug, Default)]
-struct WhiteNoise {
-    enable: bool,
-    right_pan: bool,
-    left_pan: bool,
-}
-
-impl WhiteNoise {
-    pub fn read_io(&self, address: u16) -> u8 {
-        match address {
-            _ => { warn!("{address} not valid APU io address"); 0xFF }
-        }
-    }
-
-    pub fn write_io(&mut self, address: u16, value: u8) {
-        match address {
-            _ => warn!("{address} not valid APU io address")
-        };
     }
 }
