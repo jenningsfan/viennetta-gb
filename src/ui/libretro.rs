@@ -8,6 +8,7 @@ use crate::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH}, GameBoy};
 use crate::hardware::io::joypad::Buttons;
 use crate::ui::io::graphics::convert_gameboy_to_rgb565;
 use crate::hardware::io::apu::SAMPLE_RATE;
+use crate::hardware::cpu::CPU;
 
 fn convert_c_point_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
     // Safety: Ensure that the pointer is valid and doesn't cause UB
@@ -56,6 +57,8 @@ impl Core for ViennettaCore {
     }
 
     fn on_set_environment(&mut self, initial: bool, ctx: &mut SetEnvironmentContext) {
+        //println!("set env");
+
         if !initial {
             return;
         }
@@ -67,7 +70,7 @@ impl Core for ViennettaCore {
             ctx: &mut LoadGameContext,
         ) -> Result<(), Box<dyn std::error::Error>> {
         ctx.set_pixel_format(PixelFormat::RGB565);
-
+            //println!("game load");
         //let gctx: GenericContext = ctx.into();
         //gctx.enable_audio_callback();
 
@@ -80,6 +83,10 @@ impl Core for ViennettaCore {
             self.gameboy = GameBoy::new(Cartridge::new(&data));
         }
         Ok(())
+    }
+
+    fn on_reset(&mut self, ctx: &mut ResetContext) {
+        self.gameboy.cpu = CPU::default();
     }
 
     fn get_memory_data(&mut self, data_type: std::os::raw::c_uint, _ctx: &mut GetMemoryDataContext) -> *mut std::os::raw::c_void {

@@ -83,13 +83,13 @@ impl APU {
             // left += self.channel4.get_amplitude().0;
             // right += self.channel4.get_amplitude().1;
 
-            left /= 4;
-            right /= 4;
+            left /= 3;
+            right /= 3;
             left *= self.left_vol;
             right *= self.right_vol;
 
-            let left = (left as i16 * (i16::MAX / 105));
-            let right = (right as i16 * (i16::MAX / 105));
+            let left = (left as i16) * (i16::MAX / 105);
+            let right = (right as i16) * (i16::MAX / 105);
             self.sample_buf.push(left);
             self.sample_buf.push(right);
 
