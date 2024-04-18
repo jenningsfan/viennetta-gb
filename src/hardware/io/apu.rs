@@ -69,27 +69,29 @@ impl APU {
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
             self.sampling_timer = 0;
-            let mut left: u8 = 0;
-            let mut right: u8 = 0;
+            let mut left: u16 = 0;
+            let mut right: u16 = 0;
 
             // yes I know that I'm calling it twice but the compiler should hopefully optimise it out
             // TODO: check that that actually happens
-            left += self.channel1.get_amplitude().0;
-            right += self.channel1.get_amplitude().1;
-            left += self.channel2.get_amplitude().0;
-            right += self.channel2.get_amplitude().1;
-            left += self.channel3.get_amplitude().0;
-            right += self.channel3.get_amplitude().1;
+            left += self.channel1.get_amplitude().0 as u16;
+            right += self.channel1.get_amplitude().1 as u16;
+            left += self.channel2.get_amplitude().0 as u16;
+            right += self.channel2.get_amplitude().1 as u16;
+            left += self.channel3.get_amplitude().0 as u16;
+            right += self.channel3.get_amplitude().1 as u16;
             // left += self.channel4.get_amplitude().0;
             // right += self.channel4.get_amplitude().1;
 
-            left /= 3;
-            right /= 3;
-            left *= self.left_vol;
-            right *= self.right_vol;
-
-            let left = (left as i16) * (i16::MAX / 105);
-            let right = (right as i16) * (i16::MAX / 105);
+            left *= self.left_vol as u16;
+            right *= self.right_vol as u16;
+            // left /= 3;
+            // right /= 3;
+            
+            // I don't understand why this works but it does
+            // formula copied off gameroy
+            let left = (left as i16 - 128) * 30;
+            let right = (right as i16 - 128) * 30;
             self.sample_buf.push(left);
             self.sample_buf.push(right);
 
