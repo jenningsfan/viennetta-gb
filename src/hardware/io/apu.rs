@@ -66,6 +66,8 @@ impl APU {
         self.channel2.run_cycle();
         self.channel3.run_cycle();
 
+
+
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
             self.sampling_timer = 0;
@@ -89,7 +91,7 @@ impl APU {
             // right /= 3;
             
             // I don't understand why this works but it does
-            // formula copied off gameroy
+            // formula copied off Azayaka
             let left = (left as i16 - 128) * 30;
             let right = (right as i16 - 128) * 30;
             self.sample_buf.push(left);
@@ -105,7 +107,7 @@ impl APU {
             0xFF25 => self.read_pan_reg(),                     // NR51 - panning
             0xFF24 => self.right_vol | (self.left_vol << 4),        // NR50 - volume
             0xFF10..=0xFF14 => self.channel1.read_io(address),
-            0xFF21..=0xFF24 => self.channel2.read_io(address),
+            0xFF16..=0xFF19 => self.channel2.read_io(address),
             0xFF1A..=0xFF1E => self.channel3.read_io(address),
             0xFF20..=0xFF23 => self.channel4.read_io(address),
             _ => { warn!("{address} not valid APU io address"); 0xFF }
@@ -118,7 +120,7 @@ impl APU {
             0xFF25 => self.write_pan_reg(value),                     // NR51 - panning
             0xFF24 => self.write_vol_reg(value),         // NR50 - volume
             0xFF10..=0xFF14 => self.channel1.write_io(address, value),
-            0xFF21..=0xFF24 => self.channel2.write_io(address, value),
+            0xFF16..=0xFF19 => self.channel2.write_io(address, value),
             0xFF1A..=0xFF1E => self.channel3.write_io(address, value),
             0xFF20..=0xFF23 => self.channel4.write_io(address, value),
             _ => warn!("{address} not valid APU io address")

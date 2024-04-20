@@ -38,6 +38,7 @@ impl CustomWave {
     pub fn trigger_event(&mut self) {
         //println!("wave triggered");
         self.enable = true;
+        self.wave_position = 0;
         if self.length_timer == 0 {
             self.length_timer = 256;
         }
