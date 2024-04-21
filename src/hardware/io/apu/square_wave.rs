@@ -48,8 +48,6 @@ impl SquareWave {
             self.length_timer -= 1;
             if self.length_timer == 0 {
                 self.enable = false;
-                //println!("turn off channel");
-                //self.length_timer = 64 - self.initial_length_timer;
             }
         }
     }
@@ -136,11 +134,6 @@ impl SquareWave {
                 self.enable = false;
             }
         }
-
-        // println!("Frequency: {}", self.frequency);
-        // println!("Volume: {}", self.current_volume);
-        // println!("Envelope period: {}", self.envelope_period);
-        // println!("Duty cycle: {}\n", self.wave_duty);
     }
 
     pub fn read_io(&self, address: u16) -> u8 {

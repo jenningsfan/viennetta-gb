@@ -96,8 +96,6 @@ impl APU {
             let right = (right as i16 - 128) * 30;
             self.sample_buf.push(left);
             self.sample_buf.push(right);
-
-            //println!("pushed samples");
         }
     }
 

@@ -21,14 +21,11 @@ impl CustomWave {
             return;
         }
 
-        //println!("ticking");
         self.frequency_timer -= 1;
         if self.frequency_timer == 0 {
             self.frequency_timer = (2048 - self.frequency) * 2;
             self.wave_position += 1;
-            //println!("increased wave pos");
             if self.wave_position > 31 {
-                //println!("Wave wrapped round");
                 self.wave_position = 0;
             }
 
@@ -36,16 +33,12 @@ impl CustomWave {
     }
 
     pub fn trigger_event(&mut self) {
-        //println!("wave triggered");
         self.enable = true;
         self.wave_position = 0;
         if self.length_timer == 0 {
             self.length_timer = 256;
         }
         self.frequency_timer = (2048 - self.frequency) * 2;
-        //println!("Frequency: {}", self.frequency);
-        // println!("Volume: {}", self.volume);
-        // println!("Wave: {}", self.wave.map(|item| format!("{:02X}", item)).join(" "));
     }
 
     pub fn tick_length_timer(&mut self) {
@@ -53,8 +46,6 @@ impl CustomWave {
             self.length_timer -= 1;
             if self.length_timer == 0 {
                 self.enable = false;
-                //println!("turn off channel");
-                //self.length_timer = 64 - self.initial_length_timer;
             }
         }
     }
