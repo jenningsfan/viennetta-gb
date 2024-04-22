@@ -50,11 +50,13 @@ impl APU {
                 self.channel1.tick_length_timer();
                 self.channel2.tick_length_timer();
                 self.channel3.tick_length_timer();
+                self.channel4.tick_length_timer();
             }
 
             if self.frame_sequencer_step == 7 {
                 self.channel1.tick_volume_envelope();
                 self.channel2.tick_volume_envelope();
+                self.channel4.tick_volume_envelope();
             }
 
             if self.frame_sequencer_step == 2 || self.frame_sequencer_step == 6 {
@@ -65,8 +67,7 @@ impl APU {
         self.channel1.run_cycle();
         self.channel2.run_cycle();
         self.channel3.run_cycle();
-
-
+        self.channel4.run_cycle();
 
         self.sampling_timer += 1;
         if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
@@ -82,8 +83,8 @@ impl APU {
             right += self.channel2.get_amplitude().1 as u16;
             left += self.channel3.get_amplitude().0 as u16;
             right += self.channel3.get_amplitude().1 as u16;
-            // left += self.channel4.get_amplitude().0;
-            // right += self.channel4.get_amplitude().1;
+            left += self.channel4.get_amplitude().0 as u16;
+            right += self.channel4.get_amplitude().1 as u16;
 
             left *= self.left_vol as u16;
             right *= self.right_vol as u16;
