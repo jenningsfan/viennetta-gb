@@ -1,0 +1,16 @@
+[package]
+name = "viennetta_gb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitflags = "2.4.2"
+ctrlc = "3.4.4"
+log = "0.4.20"
+
+[profile.release]
+debug = true
+incremental = true
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }

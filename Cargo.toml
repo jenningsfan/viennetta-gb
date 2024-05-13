@@ -1,25 +1,6 @@
-[package]
-name = "viennetta_gb"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[lib]
-crate-type = ["cdylib", "lib"]
-
-[dependencies]
-bitflags = "2.4.2"
-ctrlc = "3.4.4"
-derivative = "2.2.0"
-libc = "0.2.152"
-log = "0.4.20"
-
-[dependencies.rust-libretro]
-version = "0.3.1"
-features = [ "unstable-env-commands" ]
-
-[profile.release]
-debug = true
-incremental = true
-
-[dev-dependencies]
-criterion = { version = "0.5.1", features = ["html_reports"] }
+members = [
+    "viennetta_gb",
+    "libretro"
+]

@@ -1,0 +1,17 @@
+[package]
+name = "libretro"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+viennetta_gb = { path = "../viennetta_gb" }
+libc = "0.2.152"
+
+[dependencies.rust-libretro]
+version = "0.3.1"
+features = [ "unstable-env-commands" ]

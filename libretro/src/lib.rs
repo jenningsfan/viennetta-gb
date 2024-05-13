@@ -4,11 +4,25 @@ use rust_libretro::{
     contexts::*, core::Core, env_version, proc::*, retro_core, sys::*, types::*,
 }; // TODO: see which imports are necessary
 
-use crate::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH}, GameBoy};
-use crate::hardware::io::joypad::Buttons;
-use crate::ui::io::graphics::convert_gameboy_to_rgb565;
-use crate::hardware::io::apu::SAMPLE_RATE;
-use crate::hardware::cpu::CPU;
+use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
+use viennetta_gb::hardware::io::joypad::Buttons;
+use viennetta_gb::hardware::io::apu::SAMPLE_RATE;
+use viennetta_gb::hardware::cpu::CPU;
+
+const PIXEL_SIZE: usize = 2;
+const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
+
+pub fn convert_gameboy_to_rgb565(gameboy: LcdPixels) -> [u8; WIDTH * HEIGHT * PIXEL_SIZE] {
+    let mut result = [0; WIDTH * HEIGHT * PIXEL_SIZE];
+
+    for (i, pixel) in gameboy.iter().enumerate() {
+        let colour = COLOURS[*pixel as usize];
+        result[i * 2] = colour as u8; // truncates
+        result[i * 2 + 1] = (colour >> 8) as u8;
+    }
+
+    result
+}
 
 fn convert_c_point_to_vec(data: *const c_void, len: usize) -> Vec<u8> {
     // Safety: Ensure that the pointer is valid and doesn't cause UB

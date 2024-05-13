@@ -243,17 +243,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,6 +350,15 @@ checksum = "c571b676ddfc9a8c12f1f3d3085a7b163966a8fd8098a90640953ce5f6170161"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "libretro"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "rust-libretro",
+ "viennetta_gb",
 ]
 
 [[package]]
@@ -695,10 +693,7 @@ dependencies = [
  "bitflags 2.4.2",
  "criterion",
  "ctrlc",
- "derivative",
- "libc",
  "log",
- "rust-libretro",
 ]
 
 [[package]]
