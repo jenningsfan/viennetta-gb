@@ -38,6 +38,16 @@ impl APU {
     }
     
     pub fn run_cycle(&mut self) {
+        if !self.enable {
+            self.sampling_timer += 1;
+            if self.sampling_timer as u32 == SAMPLING_TIMER_INTERVAL {
+                self.sampling_timer = 0;
+                self.sample_buf.push(0);
+                self.sample_buf.push(0);
+            }
+            return;
+        }
+
         self.frame_sequencer_cycle += 1;
         if self.frame_sequencer_cycle == 8192 { // TODO: falling edge bit 5 of div. shouldn't make a difference though
             self.frame_sequencer_cycle = 0;
@@ -166,6 +176,12 @@ impl APU {
 
     fn write_control_reg(&mut self, value: u8)  {
         self.enable = value & 0x80 == 0x80;
+        if !self.enable {
+            self.channel1.enable = false;
+            self.channel2.enable = false;
+            self.channel3.enable = false;
+            self.channel4.enable = false;
+        }
     }
 
     fn write_vol_reg(&mut self, value: u8) {
