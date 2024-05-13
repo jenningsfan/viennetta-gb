@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 linuxfb = "0.3.1"
+viennetta_gb = { path = "../viennetta_gb" }

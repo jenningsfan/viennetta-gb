@@ -3,23 +3,32 @@ use std::{env, fs, thread};
 use std::io::stdin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use viennetta_gb::hardware::io::cart::Cartridge;
-use viennetta_gb::hardware::GameBoy;
 use viennetta_gb::hardware::io::joypad::Buttons;
 
+use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
+use viennetta_gb::hardware::cpu::CPU;
+
+
 const PIXEL_SIZE: usize = 2;
-const COLOURS: [u32; 4] = [0xFFFFFFFF, 0X706869, 0xaba5a8, 0x0000];
+const COLOURS: [u32; 4] = [0xFFFFFFFF, 0x706869, 0xaba5a8, 0x0000];
 
-pub fn convert_gameboy_to_rgb(gameboy: LcdPixels) -> [u8; WIDTH * HEIGHT * PIXEL_SIZE] {
-    let mut result = [0; WIDTH * HEIGHT * PIXEL_SIZE];
-
-    for (i, pixel) in gameboy.iter().enumerate() {
-        let colour = COLOURS[*pixel as usize];
-        result[i * 2] = colour as u8; // truncates
-        result[i * 2 + 1] = (colour >> 8) as u8;
+fn convert_gameboy_to_fb(gameboy: LcdPixels, width: usize, height: usize) -> Vec<u32>
+{
+    let col_repeat = width / WIDTH;
+    let row_repeat = height / HEIGHT;
+    let mut pixels = vec![];
+    for row in 0..HEIGHT {
+        for _ in 0..row_repeat {
+            for col in 0..WIDTH {
+                for _ in 0..col_repeat {
+                    let pixel = gameboy[row * WIDTH + col];
+                    pixels.push(COLOURS[pixel as usize]);
+                }
+            }
+        }
     }
 
-    result
+    return pixels;
 }
 
 fn main() {
@@ -29,23 +38,34 @@ fn main() {
 
     let mut fb: linuxfb::Framebuffer = linuxfb::Framebuffer::new("/dev/fb0").unwrap();
     let mut buffer = linuxfb::double::Buffer::new(fb).unwrap();
+    println!("Width: {}\nHeight: {}", buffer.width, buffer.height);
+
+    let width = buffer.width as usize;
+    let height = buffer.height as usize;
+
     let frame: &mut[u8] = buffer.as_mut_slice();
 
-
     for i in 0..frame.len() {
-        frame[i] = 0;
+        frame[i] = 0x0;
     }
     buffer.flip().unwrap();
 
-    gameboy.mmu.joypad.update_state(Buttons::from_bits(0).unwrap());
+    gameboy.mmu.joypad.update_state(Buttons::from_bits(0xFF).unwrap());
     loop {
-        let image = gameboy.run_frame();
+        let gameboy_pixels = gameboy.run_frame();
         let frame: &mut[u8] = buffer.as_mut_slice();
-        let (prefix, pixels, suffix) = unsafe { frame.align_to_mut::<u32>() };
+        let (prefix, screen_pixels, suffix) = unsafe { frame.align_to_mut::<u32>() };
         assert_eq!(prefix.len(), 0);
         assert_eq!(suffix.len(), 0);
-        *pixels = convert_gameboy_to_rgb(image);
+        let converted: &mut[u32] = &mut convert_gameboy_to_fb(gameboy_pixels, width, height);
+        //pixels.copy_from_slice(converted.as_mut());
 
-        thread::sleep_ms(1000 / 60);
+        for i in 0..converted.len()
+        {
+            screen_pixels[i] = converted[i];
+        }
+        buffer.flip().unwrap();
+
+        //thread::sleep_ms(1000 / 60);
     }
 }

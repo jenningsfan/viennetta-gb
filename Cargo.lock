@@ -670,6 +670,7 @@ name = "screen"
 version = "0.1.0"
 dependencies = [
  "linuxfb",
+ "viennetta_gb",
 ]
 
 [[package]]
