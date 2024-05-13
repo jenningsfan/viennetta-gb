@@ -3,7 +3,7 @@ use bitflags::bitflags;
 
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
-pub type LcdPixels = [u16; WIDTH * HEIGHT];
+pub type LcdPixels = [u8; WIDTH * HEIGHT];
 
 const DRAW_START: u16 = 80;
 const HBLANK_START: u16 = 252;
@@ -11,8 +11,6 @@ const LINE_LEN: u16 = 456;
 const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
 const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
-
-const COLOURS: [u16; 4] = [0xFFFF, 0xB573, 0x6B4B, 0x0000];
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -142,7 +140,7 @@ impl Default for PPU {
             line_y: 0,
             line_x: 0,
             cycles_line: 0,               // So that first line has OAM scan
-            lcd: [0xFFFF; WIDTH * HEIGHT],
+            lcd: [0x0; WIDTH * HEIGHT],
             vram: [0; 0x2000],
             oam: [0; 0x100],
             lcdc: LCDC::empty(),
@@ -240,7 +238,7 @@ impl PPU {
             }
         }
         else {
-            self.lcd = [0xFFFF; WIDTH * HEIGHT];
+            self.lcd = [0x0; WIDTH * HEIGHT];
             self.line_y = 0;
             self.line_x = 0;
             self.status &= 0xFC;
@@ -352,11 +350,11 @@ impl PPU {
 
         for (i, pixel) in pixels.iter().enumerate() {
             // Highlighting code
-            if (pixel.0 & 0xF0) == 0xF0 {
-                let colour = 3 + pixel.0 & 0xF;
-                self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
-                continue;
-            }
+            // if (pixel.0 & 0xF0) == 0xF0 {
+            //     let colour = 3 + pixel.0 & 0xF;
+            //     self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
+            //     continue;
+            // }
 
             let palette = match pixel.1 {
                 Palette::Background => self.palettes.bg_palette,
@@ -364,7 +362,7 @@ impl PPU {
                 Palette::Sprite1 => self.palettes.obj1_palette,
             };
             let colour = (palette >> (2 * pixel.0)) & 0x3;
-            self.lcd[i + self.line_y as usize * WIDTH] = COLOURS[colour as usize];
+            self.lcd[i + self.line_y as usize * WIDTH] = colour;
         }
     }
 
