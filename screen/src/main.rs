@@ -4,6 +4,7 @@ use std::io::stdin;
 use std::time::{Instant, Duration};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use device_query::{DeviceState, Keycode};
 use viennetta_gb::hardware::io::joypad::Buttons;
 
 use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
@@ -38,6 +39,23 @@ fn convert_gameboy_to_fb(gameboy: LcdPixels, width: usize, height: usize) -> Vec
     return pixels;
 }
 
+fn update_gb_joypad(gameboy: GameBoy, device_state: DeviceState) {
+    let buttons = [
+        Keycode::RIGHT, Keycode::LEFT, Keycode::UP, Keycode::DOWN,
+        Keycode::A, Keycode::B, Keycode::SELECT, Keycode::START,
+    ];
+    let keys: Vec<Keycode> = device_state.get_keys();
+    let mut gb_buttons = 0xFF;
+
+    for (i, button) in buttons.iter().enumerate() {
+        if keys.contains(button) {
+            gb_buttons &= !(1 << i);
+        }
+    }
+
+    gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
@@ -47,6 +65,7 @@ fn main() {
         io::stdout(),
         Hide
     );
+    let device_state = DeviceState::new();
 
     let mut fb: linuxfb::Framebuffer = linuxfb::Framebuffer::new("/dev/fb0").unwrap();
     let mut buffer = linuxfb::double::Buffer::new(fb).unwrap();
@@ -74,6 +93,8 @@ fn main() {
         old_time = current_time;
         
         accumulator += delta_time;
+
+        update_gb_joypad(gameboy, device_state);
 
         let mut gameboy_pixels: LcdPixels = [0; WIDTH * HEIGHT];
         while accumulator >= target_frame_time {
