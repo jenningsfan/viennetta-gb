@@ -9,6 +9,12 @@ use viennetta_gb::hardware::io::joypad::Buttons;
 use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
 use viennetta_gb::hardware::cpu::CPU;
 
+use std::io::{self, Write};
+
+use crossterm::{
+    ExecutableCommand, execute,
+    cursor::{Hide}
+};
 
 const PIXEL_SIZE: usize = 2;
 const COLOURS: [u32; 4] = [0xFFFFFFFF, 0x706869, 0xaba5a8, 0x0000];
@@ -37,6 +43,11 @@ fn main() {
     let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
     let mut gameboy = GameBoy::new(Cartridge::new(&rom));
 
+    execute!(
+        io::stdout(),
+        Hide
+    );
+
     let mut fb: linuxfb::Framebuffer = linuxfb::Framebuffer::new("/dev/fb0").unwrap();
     let mut buffer = linuxfb::double::Buffer::new(fb).unwrap();
     println!("Width: {}\nHeight: {}", buffer.width, buffer.height);
@@ -46,10 +57,11 @@ fn main() {
 
     let frame: &mut[u8] = buffer.as_mut_slice();
 
-    // for i in 0..frame.len() {
-    //     frame[i] = 0x0;
-    // }
+    for i in 0..frame.len() {
+        frame[i] = 0xFF;
+    }
     buffer.flip().unwrap();
+    //panic!();
     gameboy.mmu.joypad.update_state(Buttons::from_bits(0xFF).unwrap());
 
     let mut accumulator = Duration::new(0, 0);
