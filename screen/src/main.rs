@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::{env, fs, thread};
 use std::io::stdin;
+use std::time::{Instant, Duration};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use viennetta_gb::hardware::io::joypad::Buttons;
@@ -45,14 +46,29 @@ fn main() {
 
     let frame: &mut[u8] = buffer.as_mut_slice();
 
-    for i in 0..frame.len() {
-        frame[i] = 0x0;
-    }
+    // for i in 0..frame.len() {
+    //     frame[i] = 0x0;
+    // }
     buffer.flip().unwrap();
-
     gameboy.mmu.joypad.update_state(Buttons::from_bits(0xFF).unwrap());
+
+    let mut accumulator = Duration::new(0, 0);
+    let target_frame_time = Duration::from_secs_f64(1.0 / 60.0);
+    let mut old_time = Instant::now();
+
     loop {
-        let gameboy_pixels = gameboy.run_frame();
+        let current_time = Instant::now();
+        let delta_time = current_time.duration_since(old_time);
+        old_time = current_time;
+        
+        accumulator += delta_time;
+
+        let mut gameboy_pixels: LcdPixels = [0; WIDTH * HEIGHT];
+        while accumulator >= target_frame_time {
+            gameboy_pixels = gameboy.run_frame();
+            accumulator -= target_frame_time;
+        }
+
         let frame: &mut[u8] = buffer.as_mut_slice();
         let (prefix, screen_pixels, suffix) = unsafe { frame.align_to_mut::<u32>() };
         assert_eq!(prefix.len(), 0);
@@ -66,6 +82,8 @@ fn main() {
         }
         buffer.flip().unwrap();
 
-        //thread::sleep_ms(1000 / 60);
+        gameboy.mmu.apu.sample_buf = vec![];
+
+        thread::sleep_ms(1000 / 60);
     }
 }
