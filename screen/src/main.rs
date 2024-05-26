@@ -1,25 +1,32 @@
-use std::collections::HashSet;
-use std::{env, fs, thread};
-use std::io::stdin;
-use std::time::{Instant, Duration};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use device_query::{DeviceState, Keycode};
-use viennetta_gb::hardware::io::joypad::Buttons;
+use cfg_if::cfg_if;
 
-use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
-use viennetta_gb::hardware::cpu::CPU;
+cfg_if! {
+    if #[cfg(target_os = "linux")] {
+        use std::collections::HashSet;
+        use std::{env, fs, thread};
+        use std::io::stdin;
+        use std::time::{Instant, Duration};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use device_query::{DeviceState, Keycode};
+        use viennetta_gb::hardware::io::joypad::Buttons;
 
-use std::io::{self, Write};
+        use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels}, GameBoy};
+        use viennetta_gb::hardware::cpu::CPU;
 
-use crossterm::{
-    ExecutableCommand, execute,
-    cursor::{Hide}
-};
+        use std::io::{self, Write};
+
+        use crossterm::{
+            ExecutableCommand, execute,
+            cursor::{Hide}
+        };
+    }
+}
 
 const PIXEL_SIZE: usize = 2;
 const COLOURS: [u32; 4] = [0xFFFFFFFF, 0x706869, 0xaba5a8, 0x0000];
 
+#[cfg(target_os = "linux")]
 fn convert_gameboy_to_fb(gameboy: LcdPixels, width: usize, height: usize) -> Vec<u32>
 {
     let col_repeat = width / WIDTH;
@@ -39,6 +46,7 @@ fn convert_gameboy_to_fb(gameboy: LcdPixels, width: usize, height: usize) -> Vec
     return pixels;
 }
 
+#[cfg(target_os = "linux")]
 fn update_gb_joypad(gameboy: GameBoy, device_state: DeviceState) {
     let buttons = [
         Keycode::RIGHT, Keycode::LEFT, Keycode::UP, Keycode::DOWN,
@@ -56,6 +64,7 @@ fn update_gb_joypad(gameboy: GameBoy, device_state: DeviceState) {
     gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
 }
 
+#[cfg(target_os = "linux")]
 fn main() {
     let args: Vec<String> = env::args().collect();
     let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
@@ -119,4 +128,9 @@ fn main() {
 
         thread::sleep_ms(1000 / 60);
     }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    panic!("only for linux");
 }

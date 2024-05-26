@@ -6,7 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cfg-if = "1.0.0"
+viennetta_gb = { path = "../viennetta_gb" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
 crossterm = "0.27.0"
 device_query = "2.0.0"
 linuxfb = "0.3.1"
-viennetta_gb = { path = "../viennetta_gb" }
