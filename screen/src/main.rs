@@ -66,9 +66,9 @@ fn update_gb_joypad(gameboy: GameBoy, device_state: DeviceState) {
 
 #[cfg(target_os = "linux")]
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
-    let mut gameboy = GameBoy::new(Cartridge::new(&rom));
+        let args: Vec<String> = env::args().collect();
+        let rom = fs::read(&args[1]).expect(format!("{} is not a valid path\n", args[1]).as_str());
+        let mut gameboy = GameBoy::new(Cartridge::new(&rom));
 
     execute!(
         io::stdout(),
