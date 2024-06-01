@@ -3,6 +3,7 @@
 
 use error_iter::ErrorIter as _;
 use log::error;
+use pixels::wgpu::ImageCopyBuffer;
 use std::{env, fs};
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -89,7 +90,7 @@ fn main() -> Result<(), Error> {
             }
 
             // Update internal state and request a redraw
-            world.update();
+            world.update(&input);
             window.request_redraw();
         }
     });
@@ -111,8 +112,20 @@ impl State {
     }
 
     /// Update the `World` internal state; bounce the box around the screen.
-    fn update(&mut self) {
-        self.gameboy.mmu.joypad.update_state(Buttons::from_bits(0xFF).unwrap());
+    fn update(&mut self, input: &WinitInputHelper) {
+        let buttons = [
+            VirtualKeyCode::Right, VirtualKeyCode::Left, VirtualKeyCode::Up, VirtualKeyCode::Down,
+            VirtualKeyCode::X, VirtualKeyCode::Z, VirtualKeyCode::RShift, VirtualKeyCode::Return,
+        ];
+        let mut gb_buttons = 0xFF;
+
+        for (i, button) in buttons.iter().enumerate() {
+            if input.key_held(*button) {
+                gb_buttons &= !(1 << i);
+            }
+        }
+
+        self.gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
     }
 
     /// Draw the `World` state to the frame buffer.
