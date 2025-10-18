@@ -3,5 +3,6 @@
 members = [
     "viennetta_gb",
     "libretro",
-    "screen"
-, "webgpu"]
+    "screen",
+    "standalone"
+]
