@@ -12,7 +12,7 @@ use self::apu::APU;
 use self::serial::Serial;
 use self::timer::Timer;
 use self::joypad::Joypad;
-use super::boot_rom::BOOT_ROM;
+use super::boot_rom::{DMG_BOOT_ROM, CGB_BOOT_ROM};
 use self::cart::Cartridge;
 
 pub const T_CYCLES_RATE: u32 = 4 * 1024 * 1024;
@@ -117,8 +117,13 @@ impl MMU {
     }
 
     pub fn read_memory(&self, address: u16) -> u8 {
-        if address < 0x100 && self.boot_rom_enable == 0 {
-            return BOOT_ROM[address as usize];
+        if self.boot_rom_enable == 0 {
+            if address < 0x100 {
+                return CGB_BOOT_ROM[address as usize];
+            }
+            else if address >= 0x200 && address < 0x8FF {
+                return CGB_BOOT_ROM[address as usize];                
+            }
         }
 
         match address {

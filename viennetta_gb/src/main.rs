@@ -6,6 +6,7 @@ use std::sync::Arc;
 use viennetta_gb::hardware::io::cart::Cartridge;
 use viennetta_gb::hardware::GameBoy;
 use viennetta_gb::hardware::io::joypad::Buttons;
+use viennetta_gb::disasm::disasm;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -23,7 +24,7 @@ fn main() {
     if args.contains(&"--debugger".to_string()) {
         //stepping = true;
         debugging = true;
-        breakpoint.insert(0x100);
+        breakpoint.insert(0x0);
 
         // enable ctrl+c to break into debugger
         let stepping = stepping.clone();
@@ -46,13 +47,13 @@ fn main() {
     loop {
         if breakpoint.contains(&gameboy.cpu.regs.pc) || stepping.load(Ordering::SeqCst) {
             if trace {
-                if gameboy.cpu.regs.pc >= 0x100 {
+                if gameboy.cpu.regs.pc >= 0x0 {
                     gameboy.cpu.trace_regs();
                 }
             }
             else {
                 stepping.store(false, Ordering::SeqCst);
-                println!("{:04X}", gameboy.cpu.regs.pc);
+                println!("{:04X}: {}", gameboy.cpu.regs.pc, disasm(gameboy.cpu.regs.pc, &gameboy.mmu));
                 loop {
                     let mut command = String::new();
                     stdin().read_line(&mut command).unwrap();
@@ -60,9 +61,6 @@ fn main() {
 
                     match command[0] {
                         "c" => break,
-                        "i" => {
-                            println!("{:02x}", gameboy.mmu.read_memory(gameboy.cpu.regs.pc))
-                        }
                         "s" => {
                             stepping.store(true, Ordering::SeqCst);
                             break;

@@ -1,0 +1,62 @@
+nop	0	0	0	0	0	0	0	0
+"ld r16, imm16"	0	0	r16		0	0	0	1
+"ld [r16mem], a"	0	0	r16mem		0	0	1	0
+"ld a, [r16mem]"	0	0	r16mem		1	0	1	0
+"ld [imm16], sp"	0	0	0	0	1	0	0	0
+inc r16	0	0	r16		0	0	1	1
+dec r16	0	0	r16		1	0	1	1
+"add hl, r16"	0	0	r16		1	0	0	1
+inc r8	0	0	r8			1	0	0
+dec r8	0	0	r8			1	0	1
+"ld r8, imm8"	0	0	r8			1	1	0
+rlca	0	0	0	0	0	1	1	1
+rrca	0	0	0	0	1	1	1	1
+rla	0	0	0	1	0	1	1	1
+rra	0	0	0	1	1	1	1	1
+daa	0	0	1	0	0	1	1	1
+cpl	0	0	1	0	1	1	1	1
+scf	0	0	1	1	0	1	1	1
+ccf	0	0	1	1	1	1	1	1
+jr imm8	0	0	0	1	1	0	0	0
+"jr cond, imm8"	0	0	1	cond		0	0	0
+stop	0	0	0	1	0	0	0	0
+halt	0	1	1	1	0	1	1	0
+"add a, r8"	1	0	0	0	0	r8		
+"adc a, r8"	1	0	0	0	1	r8		
+"sub a, r8"	1	0	0	1	0	r8		
+"sbc a, r8"	1	0	0	1	1	r8		
+"and a, r8"	1	0	1	0	0	r8		
+"xor a, r8"	1	0	1	0	1	r8		
+"or a, r8"	1	0	1	1	0	r8		
+"cp a, r8"	1	0	1	1	1	r8		
+"add a, imm8"	1	1	0	0	0	1	1	0
+"adc a, imm8"	1	1	0	0	1	1	1	0
+"sub a, imm8"	1	1	0	1	0	1	1	0
+"sbc a, imm8"	1	1	0	1	1	1	1	0
+"and a, imm8"	1	1	1	0	0	1	1	0
+"xor a, imm8"	1	1	1	0	1	1	1	0
+"or a, imm8"	1	1	1	1	0	1	1	0
+"cp a, imm8"	1	1	1	1	1	1	1	0
+ret cond	1	1	0	cond		0	0	0
+ret	1	1	0	0	1	0	0	1
+reti	1	1	0	1	1	0	0	1
+"jp cond, imm16"	1	1	0	cond		0	1	0
+jp imm16	1	1	0	0	0	0	1	1
+jp hl	1	1	1	0	1	0	0	1
+"call cond, imm16"	1	1	0	cond		1	0	0
+call imm16	1	1	0	0	1	1	0	1
+rst tgt3	1	1	tgt3			1	1	1
+pop r16stk	1	1	r16stk		0	0	0	1
+push r16stk	1	1	r16stk		0	1	0	1
+"ldh [c], a"	1	1	1	0	0	0	1	0
+"ldh [imm8], a"	1	1	1	0	0	0	0	0
+"ld [imm16], a"	1	1	1	0	1	0	1	0
+"ldh a, [c]"	1	1	1	1	0	0	1	0
+"ldh a, [imm8]"	1	1	1	1	0	0	0	0
+"ld a, [imm16]"	1	1	1	1	1	0	1	0
+"add sp, imm8"	1	1	1	0	1	0	0	0
+"ld hl, sp + imm8"	1	1	1	1	1	0	0	0
+"ld sp, hl"	1	1	1	1	1	0	0	1
+di	1	1	1	1	0	0	1	1
+ei	1	1	1	1	1	0	1	1
+CB prefix	1	1	0	0	1	0	1	1
