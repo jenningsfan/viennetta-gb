@@ -115,7 +115,8 @@ pub struct PPU {
     pub line_y: u8,
     pub line_x: u8,
     pub cycles_line: u16,
-    vram: [u8; 0x2000],
+    vram: [u8; 0x4000],
+    vram_bank: u8,
     oam: [u8; 0x100],
     pub lcdc: LCDC,
     pub line_compare: u8,
@@ -131,6 +132,7 @@ pub struct PPU {
     scheduled_stat_update: bool,
     window_triggered: bool,
     win_line_counter: u8,
+    cgb_opri: bool,
 }
 
 impl Default for PPU {
@@ -141,7 +143,8 @@ impl Default for PPU {
             line_x: 0,
             cycles_line: 0,               // So that first line has OAM scan
             lcd: [0x0; WIDTH * HEIGHT],
-            vram: [0; 0x2000],
+            vram: [0; 0x4000],
+            vram_bank: 0,
             oam: [0; 0x100],
             lcdc: LCDC::empty(),
             line_compare: 0,
@@ -157,6 +160,7 @@ impl Default for PPU {
             scheduled_stat_update: false,
             window_triggered: false,
             win_line_counter: 0,
+            cgb_opri: true,
         }
     }
 }
@@ -168,7 +172,7 @@ impl PPU {
 
     pub fn read_vram(&self, address: u16) -> u8 {
         if self.mode != Mode::Drawing {
-            self.vram[address as usize]
+            self.vram[(address + 0x2000 * self.vram_bank as u16) as usize]
         }
         else {
             0xFF
@@ -177,7 +181,7 @@ impl PPU {
 
     pub fn write_vram(&mut self, address: u16, value: u8) {
         if self.mode != Mode::Drawing {
-            self.vram[address as usize] = value;
+            self.vram[(address + 0x2000 * self.vram_bank as u16) as usize] = value;
         }
     }
 
@@ -209,6 +213,8 @@ impl PPU {
             0xFF49 => self.palettes.obj1_palette,
             0xFF4A => self.win_y,
             0xFF4B => self.win_x,
+            0xFF4F => self.vram_bank | 0xFE,
+            0xFF6C => if self.cgb_opri { 0 } else { 1 },
             _ => 0,
         }
     }
@@ -225,6 +231,8 @@ impl PPU {
             0xFF49 => self.palettes.obj1_palette = value,
             0xFF4A => self.win_y = value,
             0xFF4B => self.win_x = value,
+            0xFF4F => self.vram_bank = value & 1,
+            0xFF6C => self.cgb_opri = (value & 1) == 0,
             _ => {},
         }
     }

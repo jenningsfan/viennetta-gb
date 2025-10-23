@@ -11,8 +11,6 @@ pub fn disasm(pc: u16, mem: &MMU) -> String {
         disasm = disasm.replace("imm8", &format!("{:02X}", imm8));
     }
     if disasm.contains("imm16") {
-        dbg!(mem.read_memory(pc + 1));
-        dbg!(mem.read_memory(pc + 2));
         let imm16 = mem.read_memory(pc + 1) as u16 | ((mem.read_memory(pc + 2) as u16) << 8);
         disasm = disasm.replace("imm16", &format!("{:04X}", imm16));
     }

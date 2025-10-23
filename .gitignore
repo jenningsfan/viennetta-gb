@@ -22,3 +22,7 @@ log_comparer/viennetta.txt
 imgui.ini
 timer-test-source/main.o
 timer-test-source/timer-test.gb
+tests/vram_dma.gb
+tests/vram_dma.o
+tests/wram-test.gb
+tests/wram-test.o

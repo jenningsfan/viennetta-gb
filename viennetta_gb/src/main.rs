@@ -24,7 +24,7 @@ fn main() {
     if args.contains(&"--debugger".to_string()) {
         //stepping = true;
         debugging = true;
-        breakpoint.insert(0x0);
+        breakpoint.insert(0x150);
 
         // enable ctrl+c to break into debugger
         let stepping = stepping.clone();
@@ -47,7 +47,7 @@ fn main() {
     loop {
         if breakpoint.contains(&gameboy.cpu.regs.pc) || stepping.load(Ordering::SeqCst) {
             if trace {
-                if gameboy.cpu.regs.pc >= 0x0 {
+                if gameboy.cpu.regs.pc >= 0x150 {
                     gameboy.cpu.trace_regs();
                 }
             }
