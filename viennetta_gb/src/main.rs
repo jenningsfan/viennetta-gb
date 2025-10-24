@@ -91,9 +91,9 @@ fn main() {
                             println!("LY: {:02X}", gameboy.mmu.ppu.line_y);
                             println!("LYC: {:02X}", gameboy.mmu.ppu.line_compare);
                             println!("line cycles: {}", gameboy.mmu.ppu.cycles_line);
-                            println!("BG pal: {:02X}", gameboy.mmu.ppu.palettes.bg_palette);
-                            println!("OBJ0 pal: {:02X}", gameboy.mmu.ppu.palettes.obj0_palette);
-                            println!("OBJ1 pal: {:02X}", gameboy.mmu.ppu.palettes.obj1_palette);
+                            println!("BG pal: {:02X}", gameboy.mmu.ppu.dmg_palettes.bg_palette);
+                            println!("OBJ0 pal: {:02X}", gameboy.mmu.ppu.dmg_palettes.obj0_palette);
+                            println!("OBJ1 pal: {:02X}", gameboy.mmu.ppu.dmg_palettes.obj1_palette);
 
                             let mode = match stat & 0x3 {
                                 0 => "H-Blank",
@@ -104,6 +104,7 @@ fn main() {
                             };
 
                             println!("Mode: {mode} ({})", stat & 0x3);
+                            gameboy.mmu.ppu.dump_regs();
                         }
                         "timer" => {
                             gameboy.mmu.timer.debug();

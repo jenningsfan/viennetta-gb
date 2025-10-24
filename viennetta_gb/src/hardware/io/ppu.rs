@@ -1,9 +1,10 @@
 use super::Interrupts;
 use bitflags::bitflags;
+use dbg_hex::dbg_hex;
 
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
-pub type LcdPixels = [u8; WIDTH * HEIGHT];
+pub type LcdPixels = [u16; WIDTH * HEIGHT];
 
 const DRAW_START: u16 = 80;
 const HBLANK_START: u16 = 252;
@@ -11,6 +12,7 @@ const LINE_LEN: u16 = 456;
 const VBLANK_START: u8 = 144;
 const VBLANK_LEN: u8 = 10;
 const FRAME_SCANLINES: u8 = VBLANK_START + VBLANK_LEN;
+const DMG_COLOURS: [u16; 4] = [0x7FFF, 0x5AB9, 0x35A5, 0x0000];
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -65,14 +67,14 @@ impl From<u8> for Colour {
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-enum Palette {
+enum DMGPalette {
     #[default] Background,
     Sprite0,
     Sprite1,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct Palettes {
+pub struct DMGPalettes {
     pub bg_palette: u8,
     pub obj0_palette: u8,
     pub obj1_palette: u8,
@@ -86,7 +88,9 @@ struct Object {
     priority: bool,
     x_flip: bool,
     y_flip: bool,
-    palette: Palette,
+    dmg_palette: DMGPalette,
+    bank: bool,
+    cgb_pal: u8,
 }
 
 impl Object {
@@ -99,11 +103,35 @@ impl Object {
             priority: (flags >> 7) & 1 == 1,
             y_flip: (flags >> 6) & 1 == 1,
             x_flip: (flags >> 5) & 1 == 1,
-            palette: match (flags >> 4) & 1 {
-                0 => Palette::Sprite0,
-                1 => Palette::Sprite1,
+            dmg_palette: match (flags >> 4) & 1 {
+                0 => DMGPalette::Sprite0,
+                1 => DMGPalette::Sprite1,
                 _ => panic!("not possible"),
             },
+            bank: bytes & 0x08 == 0x08,
+            cgb_pal: bytes as u8 & 0x7,
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct TileAttrib {
+    priority: bool,
+    x_flip: bool,
+    y_flip: bool,
+    bank: bool,
+    cgb_palette: u8,
+}
+
+impl TileAttrib {
+    fn from(byte: u8) -> Self {
+        Self {
+            priority: byte & 0x80 == 0x80,
+            y_flip: byte & 0x40 == 0x40,
+            x_flip: byte & 0x20 == 0x20,
+            bank: byte & 0x08 == 0x08,
+            //bank: false,
+            cgb_palette: byte & 0x07, 
         }
     }
 }
@@ -126,13 +154,17 @@ pub struct PPU {
     scroll_y: u8,
     win_x: u8,
     win_y: u8,
-    pub palettes: Palettes,
+    pub dmg_palettes: DMGPalettes,
+    cgb_bg_pals: [u16; 32],
+    cgb_obj_pals: [u16; 32],
     sprite_buffer: Vec<Object>,
     pub debug: bool,
     scheduled_stat_update: bool,
     window_triggered: bool,
     win_line_counter: u8,
-    cgb_opri: bool,
+    is_cgb: bool,
+    bgpi: u8,
+    obpi: u8,
 }
 
 impl Default for PPU {
@@ -154,13 +186,17 @@ impl Default for PPU {
             scroll_y: 0,
             win_x: 0,
             win_y: 0,
-            palettes: Palettes::default(),
+            dmg_palettes: DMGPalettes::default(),
             sprite_buffer: vec![],
             debug: false,
             scheduled_stat_update: false,
             window_triggered: false,
             win_line_counter: 0,
-            cgb_opri: true,
+            is_cgb: true,
+            cgb_bg_pals: [0; 32],
+            cgb_obj_pals: [0; 32],
+            bgpi: 0,
+            obpi: 0,
         }
     }
 }
@@ -199,6 +235,19 @@ impl PPU {
             self.oam[address as usize] = value;
         }
     }
+    
+    pub fn dump_regs(&self) {
+        println!("BGPI: {:02X}", self.bgpi);
+        println!("OBPI: {:02X}", self.obpi);
+
+        for i in 0..8 {
+            println!("BG{}: {:04X} {:04X} {:04X} {:04X}", i, self.cgb_bg_pals[i * 4], self.cgb_bg_pals[i * 4 + 1], self.cgb_bg_pals[i * 4 + 2], self.cgb_bg_pals[i * 4 + 3]);
+        }
+        
+        for i in 0..8 {
+            println!("OBJ{}: {:04X} {:04X} {:04X} {:04X}", i, self.cgb_obj_pals[i * 4], self.cgb_obj_pals[i * 4 + 1], self.cgb_obj_pals[i * 4 + 2], self.cgb_obj_pals[i * 4 + 3]);
+        }
+    }
 
     pub fn read_io(&self, address: u16) -> u8 {
         match address {
@@ -208,13 +257,17 @@ impl PPU {
             0xFF43 => self.scroll_x,
             0xFF44 => if self.line_y == 153 { 0 } else { self.line_y },
             0xFF45 => self.line_compare,
-            0xFF47 => self.palettes.bg_palette,
-            0xFF48 => self.palettes.obj0_palette,
-            0xFF49 => self.palettes.obj1_palette,
+            0xFF47 => self.dmg_palettes.bg_palette,
+            0xFF48 => self.dmg_palettes.obj0_palette,
+            0xFF49 => self.dmg_palettes.obj1_palette,
             0xFF4A => self.win_y,
             0xFF4B => self.win_x,
             0xFF4F => self.vram_bank | 0xFE,
-            0xFF6C => if self.cgb_opri { 0 } else { 1 },
+            0xFF68 => self.bgpi,
+            0xFF69 => Self::read_io_pal(&self.cgb_bg_pals, self.bgpi as usize),
+            0xFF6A => self.obpi,
+            0xFF6B => Self::read_io_pal(&self.cgb_obj_pals, self.obpi as usize),
+            0xFF6C => if self.is_cgb { 0 } else { 1 },
             _ => 0,
         }
     }
@@ -226,14 +279,45 @@ impl PPU {
             0xFF42 => self.scroll_y = value,
             0xFF43 => self.scroll_x = value,
             0xFF45 => self.line_compare = value,
-            0xFF47 => self.palettes.bg_palette = value,
-            0xFF48 => self.palettes.obj0_palette = value,
-            0xFF49 => self.palettes.obj1_palette = value,
+            0xFF47 => self.dmg_palettes.bg_palette = value,
+            0xFF48 => self.dmg_palettes.obj0_palette = value,
+            0xFF49 => self.dmg_palettes.obj1_palette = value,
             0xFF4A => self.win_y = value,
             0xFF4B => self.win_x = value,
             0xFF4F => self.vram_bank = value & 1,
-            0xFF6C => self.cgb_opri = (value & 1) == 0,
+            0xFF68 => self.bgpi = value,
+            0xFF69 => Self::write_io_pal(&mut self.cgb_bg_pals, &mut self.bgpi, value, true),
+            0xFF6A => self.obpi = value,
+            0xFF6B => Self::write_io_pal(&mut self.cgb_obj_pals, &mut self.obpi, value, false),
+            0xFF6C => self.is_cgb = (value & 1) == 0,
             _ => {},
+        }
+    }
+
+    fn read_io_pal(pals: &[u16], index: usize) -> u8 {
+        let shift = if index % 2 == 0 { 0 } else { 8 };
+        ((pals[(index >> 1) & 0x1F] >> shift) & 0xFF) as u8
+    }
+
+
+    // obj pals 6 and 7 not written to???
+    fn write_io_pal(pals: &mut [u16], index: &mut u8, new_val: u8, bg: bool) { 
+        let old_val = &mut pals[((*index >> 1) & 0x1F) as usize];
+
+        if *index % 2 == 0 {
+            *old_val &= 0xFF00;
+            *old_val |= new_val as u16;
+        }
+        else {
+            *old_val &= 0x00FF;
+            *old_val |= (new_val as u16) << 8;
+        }
+
+        if *index & 0x80 == 0x80 { // autio increment
+            *index += 1;
+            if (*index & 0x3F) == 64 {
+                *index = 0;
+            }
         }
     }
 
@@ -264,14 +348,15 @@ impl PPU {
     }
                                                                                        
     fn update_lcd(&mut self) {
-        let mut pixels = [(0, Palette::Background); WIDTH];
+        let mut pixels = [(0, DMGPalette::Background); WIDTH];
         let mut window_occured = false;
+        let mut priority = [true; WIDTH];
 
         for tile_num in 0..(WIDTH / 8) + 1 {
             let window = self.line_x + 7 >= self.win_x && self.line_y >= self.win_y && self.lcdc.contains(LCDC::WinEnable);
 
             let fetcher_x;
-            let fetcher_y;
+            let mut fetcher_y;
             let tilemap;
             
             if window {
@@ -285,11 +370,19 @@ impl PPU {
                 fetcher_y = self.line_y.wrapping_add(self.scroll_y) as usize;
                 tilemap = self.lcdc.contains(LCDC::BgTileMap);
             }
-            let fetcher_offset = (fetcher_y % 8) * 2;
             let tile_data_area = self.lcdc.contains(LCDC::BgTileData);
+            
+            let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap, !window);
+            let attrib = self.fetch_tile_attrib(fetcher_x, fetcher_y, tilemap);
 
-            let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap);
-            let tile = self.fetch_tile_data(tile, fetcher_offset, tile_data_area);
+            
+            if attrib.y_flip {
+                fetcher_y = 7 - fetcher_y;
+            }
+            
+            let fetcher_offset = (fetcher_y % 8) * 2;
+            let tile = self.fetch_tile_data(tile, fetcher_offset, tile_data_area, attrib.bank);
+
             let scroll_discard = self.scroll_x & 0x7;
 
             for i in 0..8 {
@@ -297,17 +390,37 @@ impl PPU {
                     continue;
                 }
 
-                let i = 7 - i;
+                let i = if attrib.x_flip { i } else { 7 - i };
                 let mut pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
-                if !self.lcdc.contains(LCDC::BgWinEnable) {
+                if !self.lcdc.contains(LCDC::BgWinEnable) && !self.is_cgb {
                     pixel = 0;
                 }
-
+                
                 if self.line_x >= WIDTH as u8 {
                     break;
                 }
+                
+                priority[self.line_x as usize] = attrib.priority;
+                pixels[self.line_x as usize] = (pixel, DMGPalette::Background);
 
-                pixels[self.line_x as usize] = (pixel, Palette::Background);
+
+                if self.is_cgb {
+                    let colour = self.cgb_bg_pals[(attrib.cgb_palette * 4 + pixel) as usize];
+                    //let colour = self.cgb_bg_pals[(pixel) as usize];
+                    //if tile_index == 11 {
+                    // if attrib.unwrap().priority {
+                    //   self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = 0x7888;
+                    // }
+                    // else {
+
+                        self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = colour;
+                    //}
+                    //}
+                    //self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = colour;
+                    //self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = tile_index as u16 * 0x111;
+                    //self.lcd[self.line_x as usize + self.line_y as usize * WIDTH] = attrib.unwrap().cgb_palette as u16 * 0x111;
+                }
+
                 self.line_x += 1;
 
                 if self.line_x >= WIDTH as u8 {
@@ -338,15 +451,28 @@ impl PPU {
                         tile &= 0xFE;
                     }
                 }
-                let tile = self.fetch_tile_data(tile, fetcher_offset as usize, true);
+                let tile_index = tile;
+                let tile = self.fetch_tile_data(tile, fetcher_offset as usize, true, obj.bank);
                 
                 for offset in 0..8 { 
                     let i = if obj.x_flip { offset } else { 7 - offset };
                     let pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
                     let offset = obj.x as usize + offset as usize - 8;
                     
-                    if offset < WIDTH && pixel != 0 && (!obj.priority || pixels[offset].0 == 0) {
-                        pixels[offset] = (pixel, obj.palette);
+                    if offset < WIDTH && pixel != 0 {
+                        if self.is_cgb {
+                            if pixels[offset].0 == 0 || !self.lcdc.contains(LCDC::BgWinEnable) || (!obj.priority && !priority[offset]) {
+                            //if attrib.unwrap().priority {
+                                let colour = self.cgb_obj_pals[(obj.cgb_pal * 4 + pixel) as usize];
+                                //let colour = 0x7EEE;
+                                self.lcd[offset + self.line_y as usize * WIDTH] = colour;
+                            }
+                        }
+                        else {
+                            if !obj.priority || pixels[offset].0 == 0 {
+                                pixels[offset] = (pixel, obj.dmg_palette);
+                            }
+                        }
                     }
                 }
             }
@@ -364,13 +490,19 @@ impl PPU {
             //     continue;
             // }
 
-            let palette = match pixel.1 {
-                Palette::Background => self.palettes.bg_palette,
-                Palette::Sprite0 => self.palettes.obj0_palette,
-                Palette::Sprite1 => self.palettes.obj1_palette,
-            };
-            let colour = (palette >> (2 * pixel.0)) & 0x3;
-            self.lcd[i + self.line_y as usize * WIDTH] = colour;
+
+            if self.is_cgb {
+
+            }
+            else {
+                let palette = match pixel.1 {
+                    DMGPalette::Background => self.dmg_palettes.bg_palette,
+                    DMGPalette::Sprite0 => self.dmg_palettes.obj0_palette,
+                    DMGPalette::Sprite1 => self.dmg_palettes.obj1_palette,
+                };
+                let colour = (palette >> (2 * pixel.0)) & 0x3;
+                self.lcd[i + self.line_y as usize * WIDTH] = DMG_COLOURS[colour as usize];
+            }
         }
     }
 
@@ -391,8 +523,10 @@ impl PPU {
             if objects.len() == 10 {
                 break;
             }
-        } 
-        objects.sort_by_key(|obj| obj.x);
+        }
+        if !self.is_cgb {
+            objects.sort_by_key(|obj| obj.x);
+        }
         objects.reverse();
         objects
     }
@@ -482,13 +616,21 @@ impl PPU {
     }
 
 
-    fn fetch_tile(&self, fetcher_x: usize, fetcher_y: usize, tilemap: bool) -> usize {
-        let tilemap = if tilemap { 0x1C00 } else { 0x1800 };
-        self.vram[tilemap + (fetcher_y / 8) * 32 + fetcher_x] as usize
+    fn fetch_tile(&self, fetcher_x: usize, fetcher_y: usize, tilemap: bool, _is_bg: bool) -> usize {
+        let tilemap_index = if tilemap { 0x1C00 } else { 0x1800 };
+
+        // if self.is_cgb && self.fetch_tile_attrib(fetcher_x, fetcher_y, tilemap).bank {
+        //     tilemap_index += 0x2000;
+        // }
+
+        self.vram[tilemap_index + (fetcher_y / 8) * 32 + fetcher_x] as usize
     }
-    
-    fn get_tile_fetch_index(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool) -> usize {
-        let tile = tile_index * 16 + tile_offset;
+
+    fn get_tile_fetch_index(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool, bank: bool) -> usize {
+        let mut tile = tile_index * 16 + tile_offset;
+        if bank {
+            tile += 0x2000;
+        }
         if tile_data_area {
             tile
         }
@@ -502,8 +644,13 @@ impl PPU {
         }
     }
 
-    fn fetch_tile_data(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool) -> (u8, u8) {
-        let index = self.get_tile_fetch_index(tile_index, tile_offset, tile_data_area);
+    fn fetch_tile_data(&self, tile_index: usize, tile_offset: usize, tile_data_area: bool, bank: bool) -> (u8, u8) {
+        let index = self.get_tile_fetch_index(tile_index, tile_offset, tile_data_area, bank);
         (self.vram[index], self.vram[index + 1])
+    }
+
+    fn fetch_tile_attrib(&self, fetcher_x: usize, fetcher_y: usize, tilemap: bool) -> TileAttrib {
+        let tilemap = if tilemap { 0x1C00 } else { 0x1800 };
+        TileAttrib::from(self.vram[0x2000 + tilemap + (fetcher_y / 8) * 32 + fetcher_x])
     }
 }

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bitflags = "2.4.2"
 ctrlc = "3.4.4"
+dbg_hex = "0.2.0"
 log = "0.4.20"
 
 [profile.release]
