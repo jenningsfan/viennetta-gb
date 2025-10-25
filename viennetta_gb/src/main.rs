@@ -44,6 +44,7 @@ fn main() {
         stepping.store(true, Ordering::SeqCst);
     }
 
+    let mut prev = gameboy.cpu.regs.pc;
     loop {
         if breakpoint.contains(&gameboy.cpu.regs.pc) || stepping.load(Ordering::SeqCst) {
             if trace {
@@ -84,6 +85,9 @@ fn main() {
                             }
                             println!();
                         }
+                        "prev" => {
+                            println!("{:04X}: {}", prev, disasm(prev, &gameboy.mmu));
+                        }
                         "ppu" => {
                             let stat = gameboy.mmu.ppu.status;
                             println!("LCDC: {:02X}", gameboy.mmu.ppu.lcdc);
@@ -115,6 +119,7 @@ fn main() {
             }
         }
         //println!("{:04X}", gameboy.cpu.regs.pc);
+        prev = gameboy.cpu.regs.pc;
         if debugging {
             gameboy.run_instruction();
         }

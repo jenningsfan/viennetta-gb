@@ -1,4 +1,5 @@
 use log::warn;
+use dbg_hex::dbg_hex;
 
 const EIGHT_KILOBYTES: usize = 8 * 1024;
 const SIXTEEN_KILOBYTES: usize = 16 * 1024;
@@ -36,7 +37,7 @@ impl MBC for MBC1 {
 
         Self {
             ram_enabled: false,
-            rom_bank: 0,
+            rom_bank: 1,
             ram_bank: 0,
             total_rom_banks: rom_banks as u8,
             total_ram_banks: ram_banks as u8,
@@ -77,8 +78,7 @@ impl MBC for MBC1 {
                 if bank == 0 {
                     bank = 1;
                 }
-
-                let mask = (!self.total_rom_banks) as u8; // flip bits. e.g. 4 needs 2 bits so it goes to 0b11;
+                let mask = (self.total_rom_banks >> 1) | ((self.total_rom_banks >> 1) - 1);
                 bank &= mask;
 
                 self.rom_bank = (self.rom_bank & 0x60) | bank;
@@ -90,6 +90,7 @@ impl MBC for MBC1 {
                 if self.total_rom_banks >= 64 {
                     self.ram_bank = (self.ram_bank & 0x1F) | ((value & 0x3) << 5);
                 }
+                //dbg!(self.ram_bank);
             }
             0x6000..=0x7FFF => {
                 self.advanced_bank_mode = value & 0x1 == 1;
@@ -101,6 +102,7 @@ impl MBC for MBC1 {
     fn read_ram(&self, address: u16) -> u8 {
         if self.ram_enabled {
             let address = ((self.ram_bank as u16) << 12) | address;
+            //dbg!(address);
             self.ram[address as usize]
         }
         else {
@@ -111,6 +113,7 @@ impl MBC for MBC1 {
     fn write_ram(&mut self, address: u16, value: u8) {
         if self.ram_enabled {
             let address = ((self.ram_bank as u16) << 12) | address;
+            //dbg!(address);
             self.ram[address as usize] = value;
         }
     }
@@ -236,6 +239,108 @@ impl MBC for MBC3 {
 }
 
 #[derive(Debug)]
+struct MBC5 {
+    ram_enabled: bool,
+    rom_bank: u16,
+    ram_bank: u8,
+    total_rom_banks: u16,
+    total_ram_banks: u8,
+    rom: Vec<u8>,
+    ram: Vec<u8>,
+}
+
+impl MBC for MBC5 {
+    fn from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Self {
+        let ram_bytes = EIGHT_KILOBYTES * ram_banks;
+        let ram = vec![0; ram_bytes];
+
+        dbg!(rom_banks);
+        dbg!(ram_banks);
+
+        Self {
+            ram_enabled: false,
+            rom_bank: 1,
+            ram_bank: 0,
+            total_rom_banks: rom_banks as u16,
+            total_ram_banks: ram_banks as u8,
+            rom,
+            ram,
+        }
+    }
+
+    fn read_rom(&self, address: u16) -> u8 {
+        let bank = match address {
+            0x0000..=0x3FFF => {
+                0
+            },
+            0x4000..=0x7FFF => {
+                self.rom_bank
+            }
+            _ => panic!("{address} not a valid ROM address")
+        };
+        let address = bank as usize * SIXTEEN_KILOBYTES + (address as usize & 0x3FFF);
+        self.rom[address]
+    }
+
+    fn write_rom(&mut self, address: u16, value: u8) {
+        match address {
+            0x0000..=0x1FFF => {
+                // RAM enable
+                self.ram_enabled = value & 0xA == 0xA;
+            }
+            0x2000..=0x2FFF => {
+                let mask = (self.total_rom_banks >> 1) | ((self.total_rom_banks >> 1) - 1);
+                self.rom_bank = (self.rom_bank & 0x100) | value as u16;
+                self.rom_bank &= mask;
+            }
+            0x3000..=0x3FFF => {
+                if self.total_rom_banks > 255 {
+                    self.rom_bank = (self.rom_bank & 0xFF) | ((value as u16 & 1) << 8);
+                }
+            }
+            0x4000..=0x5FFF => {
+                let mask = if self.total_ram_banks > 1 {
+                    (self.total_ram_banks >> 1) | ((self.total_ram_banks >> 1) - 1)
+                }
+                else {
+                    self.total_ram_banks
+                };
+                // dbg_hex!(mask);
+                // dbg!(value);
+                self.ram_bank = value & mask;
+            }
+            _ => warn!("{address} not a valid ROM address")
+        }
+    }
+
+    fn read_ram(&self, address: u16) -> u8 {
+        if self.ram_enabled {
+            let address = ((self.ram_bank as u16) << 12) | address;
+            self.ram[address as usize]
+        }
+        else {
+            0xFF
+        }
+    }
+
+    fn write_ram(&mut self, address: u16, value: u8) {
+        if self.ram_enabled {
+            let address = ((self.ram_bank as u16) << 12) | address;
+            self.ram[address as usize] = value;
+        }
+    }
+
+    fn get_save_data(&self) -> Option<&Vec<u8>> {
+        if self.total_ram_banks > 0 {
+            Some(&self.ram)
+        }
+        else {
+            None
+        }
+    }
+}
+
+#[derive(Debug)]
 struct NoMBC {
     rom: Vec<u8>,
     ram: Vec<u8>,
@@ -308,6 +413,8 @@ impl Cartridge {
         let rom_banks = 1 << (rom[ROM_SIZE_ADDR] + 1) as usize;
         let ram_banks = [0, 0, 1, 4, 16, 8][rom[RAM_SIZE_ADDR] as usize];
 
+        dbg!(rom[RAM_SIZE_ADDR]);
+
         let mbc = Self::mbc_from_cart_header(rom[MBC_TYPE_ADDR],
             rom_banks, ram_banks, rom);
 
@@ -325,6 +432,9 @@ impl Cartridge {
         }
         else if mbc_type >= 0x0F && mbc_type <= 0x13 {
             Box::new(MBC3::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
+        }
+        else if mbc_type >= 0x19 && mbc_type <= 0x1E {
+            Box::new(MBC5::from_cart_header(mbc_type, rom_banks, ram_banks, rom))
         }
         else {
             warn!("Unsopported MBC {mbc_type:02X}. Defaulting to no mbc");
