@@ -9,19 +9,24 @@ use viennetta_gb::hardware::io::joypad::Buttons;
 use viennetta_gb::hardware::io::apu::SAMPLE_RATE;
 use viennetta_gb::hardware::cpu::CPU;
 
-const PIXEL_SIZE: usize = 2;
+const PIXEL_SIZE: usize = 4;
+
+fn col_conv(c: u16) -> u8 {
+    ((c << 3) | (c >> 2)) as u8
+}
 
 pub fn convert_gameboy_to_rgb565(gameboy: LcdPixels) -> [u8; WIDTH * HEIGHT * PIXEL_SIZE] {
     let mut result = [0; WIDTH * HEIGHT * PIXEL_SIZE];
 
     for (i, pixel) in gameboy.iter().enumerate() {
+        let r = (pixel >> 10) & 0x1F;
+        let g = (pixel >> 5) & 0x1F;
+        let b = pixel & 0x1F;
         
-        let r = ((pixel >> 10) & 0x1F) as u8;
-        let g = ((pixel >> 5) & 0x1F) as u8;
-        let g = (g << 1) | (g >> 4);
-
-        result[i * 2 + 1] = (*pixel & 0xFF) as u8; // truncates
-        result[i * 2] = r << 3 | g >> 3;
+        result[i * PIXEL_SIZE] = col_conv(r); // truncates
+        result[i * PIXEL_SIZE + 1] = col_conv(g);
+        result[i * PIXEL_SIZE + 2] = col_conv(b);
+        result[i * PIXEL_SIZE + 3] = 0xFF; // alpha channel
     }
 
     result
@@ -86,7 +91,7 @@ impl Core for ViennettaCore {
             game: Option<retro_game_info>,
             ctx: &mut LoadGameContext,
         ) -> Result<(), Box<dyn std::error::Error>> {
-        ctx.set_pixel_format(PixelFormat::RGB565);
+        ctx.set_pixel_format(PixelFormat::XRGB8888);
             //println!("game load");
         //let gctx: GenericContext = ctx.into();
         //gctx.enable_audio_callback();
@@ -124,7 +129,7 @@ impl Core for ViennettaCore {
     fn on_run(&mut self, ctx: &mut RunContext, _delta_us: Option<i64>) {
         self.update_gb_joypad(ctx);
         let pixels = convert_gameboy_to_rgb565(self.gameboy.run_frame());
-        ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 2);
+        ctx.draw_frame(&pixels, WIDTH as u32, HEIGHT as u32, WIDTH as usize * 4);
 
         let actx: AudioContext = ctx.into();
         actx.batch_audio_samples(&self.gameboy.mmu.apu.sample_buf);
