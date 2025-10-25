@@ -143,7 +143,7 @@ pub struct PPU {
     pub line_y: u8,
     pub line_x: u8,
     pub cycles_line: u16,
-    vram: [u8; 0x4000],
+    pub vram: [u8; 0x4000],
     vram_bank: u8,
     oam: [u8; 0x100],
     pub lcdc: LCDC,
@@ -375,6 +375,7 @@ impl PPU {
             let tile = self.fetch_tile(fetcher_x, fetcher_y, tilemap, !window);
             let attrib = self.fetch_tile_attrib(fetcher_x, fetcher_y, tilemap);
 
+            //let tile = 0x00;
             
             if attrib.y_flip {
                 fetcher_y = 7 - fetcher_y;
@@ -504,6 +505,43 @@ impl PPU {
                 self.lcd[i + self.line_y as usize * WIDTH] = DMG_COLOURS[colour as usize];
             }
         }
+    }
+
+    pub fn dump_tiles(&self) -> [u16; WIDTH * HEIGHT] {
+        let mut pixels = [0; WIDTH * HEIGHT];
+        
+        for y in 0..HEIGHT {
+            let mut x = 0;
+
+            for tile_num in 0..16 {
+                let tile_data_area = true;
+                
+                let tile = tile_num + (y / 8) * 16;
+                
+                let fetcher_offset = (y % 8) * 2;
+                let tile = self.fetch_tile_data(tile, fetcher_offset, tile_data_area, false);
+    
+                for i in 0..8 {
+                    let i = 7 - i;
+                    let pixel = ((tile.1 >> i) & 1) << 1 | ((tile.0 >> i) & 1);
+                    //dbg!(x);
+                    //dbg!(y);  
+                    pixels[x as usize + y as usize * WIDTH] = DMG_COLOURS[pixel as usize];
+    
+                    x += 1;
+                    if x >= WIDTH as u8 {
+                        break;
+                    }
+                }
+
+                if x >= WIDTH as u8 {
+                        break;
+                }
+            }
+        }
+
+
+        pixels
     }
 
     fn oam_search(&self) -> Vec<Object> {

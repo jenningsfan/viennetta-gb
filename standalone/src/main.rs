@@ -4,7 +4,8 @@
 use error_iter::ErrorIter as _;
 use log::error;
 use pixels::wgpu::ImageCopyBuffer;
-use std::{env, fs};
+use std::{env, fs, path::Path, fs::File};
+use std::io::Write;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
@@ -15,22 +16,28 @@ use winit_input_helper::WinitInputHelper;
 use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels, joypad::Buttons}, GameBoy};
 
 const PIXEL_SIZE: usize = 4;
-const COLOURS: [u32; 4] = [0xFFFFFFFF, 0xFFC0C0C0, 0xFF808080, 0xFF000000];
 
 /// Representation of the application state. In this example, a box will bounce around the screen.
 struct State {
-    gameboy: GameBoy,
+    pub gameboy: GameBoy,
+}
+
+fn col_conv(c: u16) -> u8 {
+    ((c << 3) | (c >> 2)) as u8
 }
 
 pub fn convert_gameboy_to_rgb565(gameboy: LcdPixels) -> [u8; WIDTH * HEIGHT * PIXEL_SIZE] {
     let mut result = [0; WIDTH * HEIGHT * PIXEL_SIZE];
 
     for (i, pixel) in gameboy.iter().enumerate() {
-        let colour = COLOURS[*pixel as usize];
-        result[i * PIXEL_SIZE] = (colour & 0xFF) as u8; // truncates
-        result[i * PIXEL_SIZE + 1] = ((colour >> 8) & 0xFF) as u8;
-        result[i * PIXEL_SIZE + 2] = ((colour >> 16) & 0xFF) as u8;
-        result[i * PIXEL_SIZE + 3] = ((colour >> 24) & 0xFF) as u8;
+        let r = (pixel >> 10) & 0x1F;
+        let g = (pixel >> 5) & 0x1F;
+        let b = pixel & 0x1F;
+        
+        result[i * PIXEL_SIZE] = col_conv(b); // truncates
+        result[i * PIXEL_SIZE + 1] = col_conv(g);
+        result[i * PIXEL_SIZE + 2] = col_conv(r);
+        result[i * PIXEL_SIZE + 3] = 0xFF; // alpha channel
     }
 
     result
@@ -78,6 +85,12 @@ fn main() -> Result<(), Error> {
             if input.key_pressed(VirtualKeyCode::Escape) || input.close_requested() {
                 *control_flow = ControlFlow::Exit;
                 return;
+            }
+
+            if input.key_pressed(VirtualKeyCode::F1) {
+                let path = Path::new("vram.bin");
+                let mut file = File::create(path).unwrap();
+                file.write_all(&world.gameboy.mmu.ppu.vram).unwrap();
             }
 
             // Resize the window
@@ -132,6 +145,8 @@ impl State {
     ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     fn draw(&mut self, frame: &mut [u8]) {
+        //self.gameboy.run_frame();
+        //frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.mmu.ppu.dump_tiles()));
         frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.run_frame()));
     }
 }

@@ -5,6 +5,7 @@ pub mod apu;
 mod serial;
 mod timer;
 
+use dbg_hex::dbg_hex;
 use bitflags::bitflags;
 use log::warn;
 pub use ppu::{WIDTH, HEIGHT, LcdPixels};
@@ -95,6 +96,7 @@ pub struct MMU {
     vram_dma_source: u16,
     vram_dma_dest: u16,
     vram_dma_len: u8,
+    pub speed_switch: u8,
 }
 
 impl MMU {
@@ -118,6 +120,7 @@ impl MMU {
             vram_dma_source: 0,
             vram_dma_dest: 0,
             vram_dma_len: 0,
+            speed_switch: 0,
         }
     }
 }
@@ -170,6 +173,7 @@ impl MMU {
             0xFF46 => self.last_dma_value,                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.read_io(address),                       // PPU
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
+            0xFF4D => self.speed_switch,                                        // speed switch
             0xFF4F => self.ppu.read_io(address),                                // PPU
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
             0xFF51 => (self.vram_dma_source >> 8) as u8,                        // VRAM DMA
@@ -201,9 +205,10 @@ impl MMU {
             0xFF00 => self.joypad.write(value),                                         // Joypad
             0xFF01 => self.serial.write_data(value),                                    // Serial Data
             0xFF02 => self.serial.write_control(value),                                 // Serial Control
-            0xFF04..=0xFF07 => self.timer.write_io(address, value),                 // Timer
+            0xFF04..=0xFF07 => self.timer.write_io(address, value),                // Timer
             0xFF10..=0xFF26 => self.apu.write_io(address, value),                       // APU
-            0xFF30..=0xFF3F => self.apu.write_wave(address - 0xFF30, value),    // APU Wave Pattern
+            0xFF30..=0xFF3F => self.apu.write_wave(address - 0xFF30, value),   // APU Wave Pattern
+            0xFF4D => self.speed_switch = value & 0x81,                                 // speed switch
             0xFF46 => self.oam_dma(value),                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.write_io(address, value),                       // PPU
             0xFF4F => self.ppu.write_io(address, value),                                // PPU
@@ -213,7 +218,7 @@ impl MMU {
             0xFF52 => self.vram_dma_source = (self.vram_dma_source & 0xFF00) | (value as u16),  // VRAM DMA
             0xFF53 => self.vram_dma_dest = (self.vram_dma_dest & 0xFF) | (value as u16) << 8,   // VRAM DMA
             0xFF54 => self.vram_dma_dest = (self.vram_dma_dest & 0xFF00) | (value as u16),      // VRAM DMA
-            0xFF55 => { self.vram_dma_len = value * 0x7F; self.vram_dma() },                             // VRAM DMA
+            0xFF55 => { self.vram_dma_len = value & 0x7F; self.vram_dma() },                             // VRAM DMA
             0xFF56 => warn!("TODO: IR port write"),                                     // IR port
             0xFF68..=0xFF6C => self.ppu.write_io(address, value),                       // PPU
             0xFF70 => self.ram.wram_bank = value & 0x7,                                 // WRAM bank
@@ -238,11 +243,15 @@ impl MMU {
 
     fn vram_dma(&mut self) {
         let source = self.vram_dma_source;
-        let dest = (self.vram_dma_dest & 0x1FF0) | 0x8000;
+        let dest = (self.vram_dma_dest & 0x1FF0) + 0x8000;
         let len = (self.vram_dma_len as u16 + 1) * 0x10;
 
         for i in 0..len {
             self.write_memory(dest + i, self.read_memory(source + i));
         }
+
+        // dbg_hex!(source);
+        // dbg_hex!(dest);
+        // dbg_hex!(len);
     }
 }

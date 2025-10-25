@@ -305,8 +305,6 @@ impl MBC for MBC5 {
                 else {
                     self.total_ram_banks
                 };
-                // dbg_hex!(mask);
-                // dbg!(value);
                 self.ram_bank = value & mask;
             }
             _ => warn!("{address} not a valid ROM address")

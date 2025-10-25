@@ -17,10 +17,17 @@ pub struct CPU {
     int_master_enable: bool,
     ei_last_instruction: bool,
     halt_mode: bool,
+    double_speed: bool,
+    freeze_count: u16,
 }
 
 impl CPU {
     pub fn tick(&mut self, mmu: &mut MMU) -> u8 {
+        if self.freeze_count != 0 {
+            self.freeze_count -= 1;
+            return 1;
+        }
+
         if self.ei_last_instruction {
             self.int_master_enable = true;
             self.ei_last_instruction = false;
@@ -67,7 +74,13 @@ impl CPU {
         }
 
         if !self.halt_mode {
-            self.handle_opcode(mmu)
+            let cycles = self.handle_opcode(mmu);
+            if self.double_speed {
+                cycles / 2
+            }
+            else {
+                cycles
+            }
         }
         else {
             1
@@ -306,7 +319,11 @@ impl CPU {
         
                 if opcode == 0x10 {
                     // stop
-                    panic!("Hit STOP at {:04X}", self.regs.pc)
+                    if mmu.speed_switch & 0x80 == 0x80 { // switch armed
+                        self.double_speed = mmu.speed_switch & 0x01 == 0x01;
+                        self.freeze_count = 2050;
+                    }
+                    return 1;
                 }
             },
             0x1 => {

@@ -1,6 +1,8 @@
 use std::collections::HashSet;
-use std::{fs, env};
-use std::io::stdin;
+use std::fs::File;
+use std::path::Path;
+use std::{env, fs, io};
+use std::io::{stdin, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use viennetta_gb::hardware::io::cart::Cartridge;
@@ -112,6 +114,11 @@ fn main() {
                         }
                         "timer" => {
                             gameboy.mmu.timer.debug();
+                        }
+                        "vram" => {
+                            let path = Path::new("vram.bin");
+                            let mut file = File::create(path).unwrap();
+                            file.write_all(&gameboy.mmu.ppu.vram[..6144]).unwrap();
                         }
                         _ => println!("Not a valid command"),
                     }
