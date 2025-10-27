@@ -17,9 +17,15 @@ use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels, joy
 
 const PIXEL_SIZE: usize = 4;
 
+enum Mode {
+    Normal,
+    TileDump,
+}
+
 /// Representation of the application state. In this example, a box will bounce around the screen.
 struct State {
     pub gameboy: GameBoy,
+    pub mode: Mode
 }
 
 fn col_conv(c: u16) -> u8 {
@@ -93,6 +99,13 @@ fn main() -> Result<(), Error> {
                 file.write_all(&world.gameboy.mmu.ppu.vram).unwrap();
             }
 
+            if input.key_pressed(VirtualKeyCode::M) {
+                world.mode = match world.mode {
+                    Mode::Normal => Mode::TileDump,
+                    Mode::TileDump => Mode::Normal,
+                };
+            }
+
             // Resize the window
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
@@ -120,7 +133,8 @@ impl State {
     /// Create a new `World` instance that can draw a moving box.
     fn new(rom: &[u8]) -> Self {
         Self {
-            gameboy: GameBoy::new(Cartridge::new(rom))
+            gameboy: GameBoy::new(Cartridge::new(rom)),
+            mode: Mode::Normal,
         }
     }
 
@@ -145,8 +159,14 @@ impl State {
     ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
     fn draw(&mut self, frame: &mut [u8]) {
-        //self.gameboy.run_frame();
-        //frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.mmu.ppu.dump_tiles()));
-        frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.run_frame()));
+        match self.mode {
+            Mode::Normal => {
+                frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.run_frame()))
+            },
+            Mode::TileDump => {
+                self.gameboy.run_frame();
+                frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.mmu.ppu.dump_tiles()));
+            }
+        };
     }
 }

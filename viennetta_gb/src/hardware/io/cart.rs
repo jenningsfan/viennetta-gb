@@ -1,5 +1,8 @@
+use std::time;
+
 use log::warn;
 use dbg_hex::dbg_hex;
+use chrono::{Duration, TimeZone, Timelike, Utc};
 
 const EIGHT_KILOBYTES: usize = 8 * 1024;
 const SIXTEEN_KILOBYTES: usize = 16 * 1024;
@@ -16,6 +19,9 @@ trait MBC: std::fmt::Debug {
     fn read_ram(&self, address: u16) -> u8;
     fn write_ram(&mut self, address: u16, value: u8);
     fn get_save_data(&self) -> Option<&Vec<u8>>;
+    fn get_extra_data(&self) -> Option<Vec<&u8>> {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -128,6 +134,10 @@ impl MBC for MBC1 {
     }
 }
 
+// uses a horrific hack to get rtc and libretro playing together as friends
+// just save rtc data into the ram
+// yeah that is stupid but whatever
+// there is almost certainly a better way to do this
 #[derive(Debug)]
 struct MBC3 {
     rom_bank: u8,
@@ -137,11 +147,23 @@ struct MBC3 {
     rom: Vec<u8>,
     ram: Vec<u8>,
     ram_enabled: bool,
+    rtc_latch: [u8; 5],
+    last_latch: i8,
+}
+
+impl MBC3 {
+    fn read_rtc_regs(&self) -> [u8; 5] {
+        let ram_bytes = EIGHT_KILOBYTES * self.total_ram_banks as usize;
+        let time_delta = u32::from_le_bytes(self.ram[ram_bytes..ram_bytes + 4].try_into().unwrap());
+        let time = Utc::now() + Duration::seconds(time_delta as i64);
+
+        [time.second() as u8, time.minute() as u8, time.hour() as u8, self.ram[ram_bytes + 4], self.ram[ram_bytes + 5]]
+    }
 }
 
 impl MBC for MBC3 {
     fn from_cart_header(mbc_type: u8, rom_banks: usize, ram_banks: usize, rom: Vec<u8>) -> Self {
-        let ram_bytes = EIGHT_KILOBYTES * ram_banks;
+        let ram_bytes = EIGHT_KILOBYTES * ram_banks + 11;
         let ram = vec![0; ram_bytes];
 
         Self {
@@ -152,6 +174,8 @@ impl MBC for MBC3 {
             total_ram_banks: ram_banks as u8,
             rom,
             ram,
+            rtc_latch: [0; 5],
+            last_latch: -1,
         }
     }
 
@@ -173,7 +197,8 @@ impl MBC for MBC3 {
                 self.ram_enabled = value & 0xA == 0xA;
             }
             0x2000..=0x3FFF => {
-                let mut bank = value & 0x7F;
+                let mask = (self.total_rom_banks >> 1) | ((self.total_rom_banks >> 1) - 1);
+                let mut bank = value & mask;
                 if bank == 0 {
                     bank = 1;
                 }
@@ -181,32 +206,40 @@ impl MBC for MBC3 {
                 self.rom_bank = bank;
             }
             0x4000..=0x5FFF => {
-                self.ram_bank = value;
+                let mask = if self.total_ram_banks > 1 {
+                    (self.total_ram_banks >> 1) | ((self.total_ram_banks >> 1) - 1)
+                }
+                else {
+                    self.total_ram_banks
+                };
+                self.ram_bank = value & mask;
             }
-            0x6000..=0x7FFF => {
-                // TODO: RTC
-                // would latch clock
-                warn!("RTC not implemented yet")
+            0x6000..=0x7FFF => {                
+                if self.last_latch == 0 && value == 1 {
+                    self.rtc_latch = self.read_rtc_regs();
+                }
+                self.last_latch = value as i8;
             }
             _ => panic!("{address} not a valid ROM address")
         }
     }
 
+
+
     fn read_ram(&self, address: u16) -> u8 {
         // TODO: RTC
         if self.ram_enabled {
-            if self.ram_bank <= 0x03 {
-                let address = ((self.ram_bank as u16) << 12) | address;
-                self.ram[address as usize]
-            }
-            else if self.ram_bank >= 0x8 && self.ram_bank <= 0xC {
-                // TODO: RTC. should select a rtc register
-                warn!("RTC not implemented yet");
-                0xFF
-            }
-            else {
-                warn!("{} not valid", self.ram_bank);
-                0xFF
+            match self.ram_bank {
+                0..=3 => {
+                    let address = ((self.ram_bank as u16) << 12) | address;
+                    self.ram[address as usize]
+                },
+                 
+                0x8..=0xC => {
+                    let regs = if self.last_latch == -1 { self.read_rtc_regs() } else { self.rtc_latch };
+                    regs[self.ram_bank as usize - 8]
+                }
+                _ => panic!("{} not valid ram bank", self.ram_bank),
             }
         }
         else {
@@ -217,14 +250,25 @@ impl MBC for MBC3 {
     fn write_ram(&mut self, address: u16, value: u8) {
         // TODO: RTC
         if self.ram_enabled {
-            if self.ram_bank <= 0x3 {
-                let address = ((self.ram_bank as u16) << 12) | address;
-                self.ram[address as usize] = value;
+            let ram_bytes = EIGHT_KILOBYTES * self.total_ram_banks as usize;
+            let mut time_delta = u32::from_le_bytes(self.ram[ram_bytes..ram_bytes + 4].try_into().unwrap());
+            let mut time = Utc::now() + Duration::seconds(time_delta as i64);
+
+            match self.ram_bank {
+                0..=3 => {
+                    let address = ((self.ram_bank as u16) << 12) | address;
+                    self.ram[address as usize] = value;
+                },
+                0x8 => time = time.with_second(value.into()).unwrap_or(time),
+                0x9 => time = time.with_minute(value.into()).unwrap_or(time),
+                0xA => time = time.with_hour(value.into()).unwrap_or(time),
+                0xB => self.ram[ram_bytes + 4] = value,
+                0xC => self.ram[ram_bytes + 5] = value,
+                _ => panic!("{} not valid ram bank", self.ram_bank),
             }
-            else if self.ram_bank >= 0x8 && self.ram_bank <= 0xC {
-                // TODO: RTC. should select a rtc register
-                warn!("RTC not implemented yet");
-            }
+
+            time_delta = (time - Utc::now()).num_seconds() as u32;
+            self.ram[ram_bytes..ram_bytes + 4].copy_from_slice(&time_delta.to_le_bytes());
         }
     }
 

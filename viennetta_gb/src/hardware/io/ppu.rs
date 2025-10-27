@@ -330,7 +330,7 @@ impl PPU {
             }
         }
         else {
-            self.lcd = [0x0; WIDTH * HEIGHT];
+            self.lcd = [0x7FFF; WIDTH * HEIGHT];
             self.line_y = 0;
             self.line_x = 0;
             self.status &= 0xFC;
