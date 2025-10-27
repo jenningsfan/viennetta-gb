@@ -29,7 +29,7 @@ struct RAM {
 
 impl RAM {
     pub fn read_wram(&self, mut address: u16) -> u8 {
-        let bank = if self.wram_bank == 0 { 0 } else { self.wram_bank - 1};
+        let bank = self.wram_bank - 1;
         if address >= 0x1000 {
             address += bank as u16 * 0x1000;
         }
@@ -42,7 +42,7 @@ impl RAM {
     }
 
     pub fn write_wram(&mut self, mut address: u16, value: u8) {
-        let bank = if self.wram_bank == 0 { 0 } else { self.wram_bank - 1};
+        let bank = self.wram_bank - 1;
         if address >= 0x1000 {
             address += bank as u16 * 0x1000;
         }
@@ -221,7 +221,7 @@ impl MMU {
             0xFF55 => { self.vram_dma_len = value & 0x7F; self.vram_dma() },                             // VRAM DMA
             0xFF56 => warn!("TODO: IR port write"),                                     // IR port
             0xFF68..=0xFF6C => self.ppu.write_io(address, value),                       // PPU
-            0xFF70 => self.ram.wram_bank = value & 0x7,                                 // WRAM bank
+            0xFF70 => self.ram.wram_bank = if value & 0x7 == 0 { 1 } else { value & 0x7 },     // WRAM bank
             0xFF72 => self.ff72 = value,                                                // FF72
             0xFF73 => self.ff73 = value,                                                // FF73
             0xFF74 => self.ff74 = value,                                                // FF74

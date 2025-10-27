@@ -33,7 +33,7 @@ def replace_4_opts(ins, opt, opts):
 
 for (i, r8_1) in enumerate(R8):
     for (j, r8_2) in enumerate(R8):
-        table[int((0x80 | (i << 3) | j))] = f"ld {r8_1}, {r8_2}"
+        table[int((0x40 | (i << 3) | j))] = f"ld {r8_1}, {r8_2}"
 
 for ins in instrs:
     ins = ins.strip().split("\t")

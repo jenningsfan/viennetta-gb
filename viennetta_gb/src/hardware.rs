@@ -4,7 +4,7 @@ pub mod io;
 pub mod cpu;
 mod boot_rom;
 
-const CYCLES_PER_FRAME: u16 = 17556;
+pub const CYCLES_PER_FRAME: u16 = 17556;
 
 #[derive(Debug)]
 pub struct GameBoy {

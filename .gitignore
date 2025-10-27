@@ -26,3 +26,4 @@ tests/vram_dma.gb
 tests/vram_dma.o
 tests/wram-test.gb
 tests/wram-test.o
+vram.bin

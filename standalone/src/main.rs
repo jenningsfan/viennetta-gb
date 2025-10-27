@@ -3,7 +3,7 @@
 
 use error_iter::ErrorIter as _;
 use log::error;
-use pixels::wgpu::ImageCopyBuffer;
+use std::collections::HashSet;
 use std::{env, fs, path::Path, fs::File};
 use std::io::Write;
 use pixels::{Error, Pixels, SurfaceTexture};
@@ -14,6 +14,7 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
 use viennetta_gb::hardware::{io::{cart::Cartridge, HEIGHT, WIDTH, LcdPixels, joypad::Buttons}, GameBoy};
+use viennetta_gb::disasm::disasm;
 
 const PIXEL_SIZE: usize = 4;
 
@@ -24,8 +25,175 @@ enum Mode {
 
 /// Representation of the application state. In this example, a box will bounce around the screen.
 struct State {
-    pub gameboy: GameBoy,
-    pub mode: Mode
+    gameboy: GameBoy,
+    mode: Mode,
+    stepping: bool,
+    breakpoints: HashSet<u16>,
+    prev: u16,
+}
+
+impl State {
+    fn new(rom: &[u8]) -> Self {
+        Self {
+            gameboy: GameBoy::new(Cartridge::new(rom)),
+            mode: Mode::Normal,
+            stepping: false,
+            breakpoints: HashSet::new(),
+            prev: 0,
+        }
+    }
+
+    fn update_keys(&mut self, input: &WinitInputHelper) {
+        if input.key_pressed(VirtualKeyCode::F1) {
+            let path = Path::new("vram.bin");
+            let mut file = File::create(path).unwrap();
+            file.write_all(&self.gameboy.mmu.ppu.vram).unwrap();
+        }
+        else if input.key_pressed(VirtualKeyCode::F2) {
+            self.mode = match self.mode {
+                Mode::Normal => Mode::TileDump,
+                Mode::TileDump => Mode::Normal,
+            };
+        }
+        else if input.key_pressed(VirtualKeyCode::F4) {
+            self.stepping = true;
+        }
+    
+        let buttons = [
+            VirtualKeyCode::Right, VirtualKeyCode::Left, VirtualKeyCode::Up, VirtualKeyCode::Down,
+            VirtualKeyCode::X, VirtualKeyCode::Z, VirtualKeyCode::RShift, VirtualKeyCode::Return,
+        ];
+        let mut gb_buttons = 0xFF;
+    
+        for (i, button) in buttons.iter().enumerate() {
+            if input.key_held(*button) {
+                gb_buttons &= !(1 << i);
+            }
+        }
+
+        self.gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
+    }
+    
+    fn update_debug(&mut self) -> u8 {
+        // are we stepping or at a breakpoint?
+        if self.gameboy.cpu.regs.pc == 0x2941 {
+            let de = (self.gameboy.cpu.regs.d as u16) << 8 | self.gameboy.cpu.regs.e as u16;
+            let copy_len = self.gameboy.mmu.read_memory(de - 1);
+            let copy_dest = (self.gameboy.mmu.read_memory(de - 3) as u16) << 8 | self.gameboy.mmu.read_memory(de - 2) as u16;
+            
+            if copy_dest < 0x9C00 {
+                println!("len of copy: {:02X}", copy_len);
+                println!("copy dest: {:04X}", copy_dest);
+                let mut copied = String::new();
+                for i in 0..copy_len {
+                    copied += format!("{:02X} ", self.gameboy.mmu.read_memory(de + i as u16)).as_str();
+                }
+                println!("copied data: {copied}")
+            }
+        }
+
+        if !(self.stepping || self.breakpoints.contains(&self.gameboy.cpu.regs.pc)) {
+            self.prev = self.gameboy.cpu.regs.pc;
+            return self.gameboy.run_instruction();
+        }
+
+        println!("{:04X}: {}", self.gameboy.cpu.regs.pc, disasm(self.gameboy.cpu.regs.pc, &self.gameboy.mmu));
+        loop {
+            let mut command = String::new();
+            std::io::stdin().read_line(&mut command).unwrap();
+            let command: Vec<_> = command.trim().split(" ").collect();
+
+            match command[0] {
+                "c" => {
+                    self.stepping = false;
+                    break;
+                },
+                "s" => {
+                    self.stepping = true;
+                    break;
+                }
+                "b" => {
+                    self.breakpoints.insert(u16::from_str_radix(command[1], 16).unwrap());
+                }
+                "rb" => {
+                    let offset = u16::from_str_radix(command[1], 16).unwrap();
+                    self.breakpoints.retain(|x| *x != offset);
+                }
+                "r" => {
+                    self.gameboy.cpu.dump_regs();
+                }
+                "q" => {
+                    std::process::exit(0);
+                }
+                "ch" => {
+                    for i in 0..4 {
+                        print!("{:02X}", self.gameboy.mmu.read_memory(0xFF80 + i));
+                    }
+                    println!();
+                }
+                "prev" => {
+                    println!("{:04X}: {}", self.prev, disasm(self.prev, &self.gameboy.mmu));
+                }
+                "ppu" => {
+                    let stat = self.gameboy.mmu.ppu.status;
+                    println!("LCDC: {:02X}", self.gameboy.mmu.ppu.lcdc);
+                    println!("STAT: {:02X}", stat);
+                    println!("LY: {:02X}", self.gameboy.mmu.ppu.line_y);
+                    println!("LYC: {:02X}", self.gameboy.mmu.ppu.line_compare);
+                    println!("line cycles: {}", self.gameboy.mmu.ppu.cycles_line);
+                    println!("BG pal: {:02X}", self.gameboy.mmu.ppu.dmg_palettes.bg_palette);
+                    println!("OBJ0 pal: {:02X}", self.gameboy.mmu.ppu.dmg_palettes.obj0_palette);
+                    println!("OBJ1 pal: {:02X}", self.gameboy.mmu.ppu.dmg_palettes.obj1_palette);
+
+                    let mode = match stat & 0x3 {
+                        0 => "H-Blank",
+                        1 => "V-Blank",
+                        2 => "OAM Scan",
+                        3 => "Drawing",
+                        _ => panic!("impossible"),
+                    };
+
+                    println!("Mode: {mode} ({})", stat & 0x3);
+                    self.gameboy.mmu.ppu.dump_regs();
+                }
+                "timer" => {
+                    self.gameboy.mmu.timer.debug();
+                }
+                "vram" => {
+                    let path = Path::new("vram.bin");
+                    let mut file = File::create(path).unwrap();
+                    file.write_all(&self.gameboy.mmu.ppu.vram[..6144]).unwrap();
+                }
+                _ => println!("Not a valid command"),
+            }
+        }
+        
+        self.prev = self.gameboy.cpu.regs.pc;
+        self.gameboy.run_instruction()
+    }
+
+    fn update(&mut self, input: &WinitInputHelper) {
+        self.update_keys(input);
+
+        let mut total_cycles = 0;
+
+        while total_cycles < viennetta_gb::hardware::CYCLES_PER_FRAME && !self.stepping {
+            total_cycles += self.update_debug() as u16;
+        }
+
+        if self.stepping {
+            self.update_debug();
+        }
+    }
+
+    fn draw(&mut self, frame: &mut [u8]) {
+        let screen = match self.mode {
+            Mode::Normal => self.gameboy.mmu.get_frame(),
+            Mode::TileDump => self.gameboy.mmu.ppu.dump_tiles(),
+        };
+
+        frame.copy_from_slice(&convert_gameboy_to_rgb565(screen));
+    }
 }
 
 fn col_conv(c: u16) -> u8 {
@@ -93,19 +261,6 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
-            if input.key_pressed(VirtualKeyCode::F1) {
-                let path = Path::new("vram.bin");
-                let mut file = File::create(path).unwrap();
-                file.write_all(&world.gameboy.mmu.ppu.vram).unwrap();
-            }
-
-            if input.key_pressed(VirtualKeyCode::M) {
-                world.mode = match world.mode {
-                    Mode::Normal => Mode::TileDump,
-                    Mode::TileDump => Mode::Normal,
-                };
-            }
-
             // Resize the window
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
@@ -126,47 +281,5 @@ fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
     error!("{method_name}() failed: {err}");
     for source in err.sources().skip(1) {
         error!("  Caused by: {source}");
-    }
-}
-
-impl State {
-    /// Create a new `World` instance that can draw a moving box.
-    fn new(rom: &[u8]) -> Self {
-        Self {
-            gameboy: GameBoy::new(Cartridge::new(rom)),
-            mode: Mode::Normal,
-        }
-    }
-
-    /// Update the `World` internal state; bounce the box around the screen.
-    fn update(&mut self, input: &WinitInputHelper) {
-        let buttons = [
-            VirtualKeyCode::Right, VirtualKeyCode::Left, VirtualKeyCode::Up, VirtualKeyCode::Down,
-            VirtualKeyCode::X, VirtualKeyCode::Z, VirtualKeyCode::RShift, VirtualKeyCode::Return,
-        ];
-        let mut gb_buttons = 0xFF;
-
-        for (i, button) in buttons.iter().enumerate() {
-            if input.key_held(*button) {
-                gb_buttons &= !(1 << i);
-            }
-        }
-
-        self.gameboy.mmu.joypad.update_state(Buttons::from_bits(gb_buttons).unwrap());
-    }
-
-    /// Draw the `World` state to the frame buffer.
-    ///
-    /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
-    fn draw(&mut self, frame: &mut [u8]) {
-        match self.mode {
-            Mode::Normal => {
-                frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.run_frame()))
-            },
-            Mode::TileDump => {
-                self.gameboy.run_frame();
-                frame.copy_from_slice(&convert_gameboy_to_rgb565(self.gameboy.mmu.ppu.dump_tiles()));
-            }
-        };
     }
 }
