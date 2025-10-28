@@ -4,7 +4,7 @@ pub mod io;
 pub mod cpu;
 mod boot_rom;
 
-pub const CYCLES_PER_FRAME: u16 = 17556;
+pub const CYCLES_PER_FRAME: u32 = 17556 * 4;
 
 #[derive(Debug)]
 pub struct GameBoy {
@@ -24,7 +24,13 @@ impl GameBoy {
         let mut total_cycles = 0;
 
         while total_cycles < CYCLES_PER_FRAME {
-            total_cycles += self.run_instruction() as u16;
+            let cycles = self.run_instruction() as u32;
+            if self.cpu.double_speed {
+                total_cycles += cycles * 2;
+            }
+            else {
+                total_cycles += cycles * 4;
+            }
         }
         //println!("FRAME FRAME FRAMETY FRAME Y: {} X: {} CYCLES: {}", self.mmu.ppu.line_y, self.mmu.ppu.line_x, self.mmu.ppu.cycles_line);
         // println!("{}", self.mmu.apu.sample_buf.len());
@@ -35,7 +41,7 @@ impl GameBoy {
     #[inline]
     pub fn run_instruction(&mut self) -> u8 {
         let cycles = self.cpu.tick(&mut self.mmu);
-        self.mmu.run_cycles(cycles);
+        self.mmu.run_cycles(cycles, self.cpu.double_speed);
 
         cycles
     }

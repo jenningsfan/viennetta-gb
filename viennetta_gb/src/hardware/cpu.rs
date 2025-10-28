@@ -2,6 +2,7 @@ mod cycles;
 mod registers;
 use cycles::*;
 use registers::*;
+use dbg_hex::dbg_hex;
 
 use super::io::{Interrupts, MMU};
 
@@ -17,7 +18,7 @@ pub struct CPU {
     int_master_enable: bool,
     ei_last_instruction: bool,
     halt_mode: bool,
-    double_speed: bool,
+    pub double_speed: bool,
     freeze_count: u16,
 }
 
@@ -75,12 +76,7 @@ impl CPU {
 
         if !self.halt_mode {
             let cycles = self.handle_opcode(mmu);
-            if self.double_speed {
-                cycles / 2
-            }
-            else {
-                cycles
-            }
+            cycles
         }
         else {
             1
@@ -319,8 +315,8 @@ impl CPU {
         
                 if opcode == 0x10 {
                     // stop
-                    if mmu.speed_switch & 0x80 == 0x80 { // switch armed
-                        self.double_speed = mmu.speed_switch & 0x01 == 0x01;
+                    if mmu.speed_switch & 0x01 == 0x01 { // switch armed
+                        self.double_speed = !self.double_speed;
                         self.freeze_count = 2050;
                     }
                     return 1;

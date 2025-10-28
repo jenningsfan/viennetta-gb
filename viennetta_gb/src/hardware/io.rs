@@ -97,6 +97,7 @@ pub struct MMU {
     vram_dma_dest: u16,
     vram_dma_len: u8,
     pub speed_switch: u8,
+    pub double_speed: bool,
 }
 
 impl MMU {
@@ -121,16 +122,25 @@ impl MMU {
             vram_dma_dest: 0,
             vram_dma_len: 0,
             speed_switch: 0,
+            double_speed: false,
         }
     }
 }
 
 impl MMU {
-    pub fn run_cycles(&mut self, cycles: u8) {
+    pub fn run_cycles(&mut self, cycles: u8, double_speed: bool) {
         for _ in 0..cycles {
-            self.int_flag |= self.ppu.run_cycles(4);
-            self.int_flag |= self.timer.run_cycles(4);
-            self.apu.run_cycles(4);
+            if double_speed {
+                //println!("double speed, {cycles}, {}", cycles * 2);
+                self.int_flag |= self.timer.run_cycles(4);
+                self.int_flag |= self.ppu.run_cycles(2);
+                self.apu.run_cycles(2);
+            }
+            else {
+                self.int_flag |= self.timer.run_cycles(4);
+                self.int_flag |= self.ppu.run_cycles(4);
+                self.apu.run_cycles(4);
+            }
 
             // if let Some(addr) = self.dma_transfer_offset {
             //     self.ppu.write_oam(addr & 0xFF, self.read_memory(addr));
@@ -173,7 +183,7 @@ impl MMU {
             0xFF46 => self.last_dma_value,                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.read_io(address),                       // PPU
             0xFF0F => self.int_flag.bits() as u8,                               // Interrupt Enable
-            0xFF4D => self.speed_switch,                                        // speed switch
+            0xFF4D => self.speed_switch | if self.double_speed {0x80} else {0}, // speed switch
             0xFF4F => self.ppu.read_io(address),                                // PPU
             0xFF50 => self.boot_rom_enable,                                     // Boot ROM Enable/Disable
             0xFF51 => (self.vram_dma_source >> 8) as u8,                        // VRAM DMA
@@ -194,6 +204,10 @@ impl MMU {
     }
 
     pub fn write_memory(&mut self, address: u16, value: u8) {
+        if address == 0x99B1 {
+            //println!("wrote {value:02X} to 0x99B1");
+        }
+
         match address {
             0x0000..=0x7FFF => self.cart.write_rom(address, value),                     // ROM
             0x8000..=0x9FFF => self.ppu.write_vram(address - 0x8000, value),   // VRAM
@@ -208,7 +222,7 @@ impl MMU {
             0xFF04..=0xFF07 => self.timer.write_io(address, value),                // Timer
             0xFF10..=0xFF26 => self.apu.write_io(address, value),                       // APU
             0xFF30..=0xFF3F => self.apu.write_wave(address - 0xFF30, value),   // APU Wave Pattern
-            0xFF4D => self.speed_switch = value & 0x81,                                 // speed switch
+            0xFF4D => self.speed_switch = value & 0x01,                                 // speed switch
             0xFF46 => self.oam_dma(value),                                      // OAM DMA
             0xFF40..=0xFF4B => self.ppu.write_io(address, value),                       // PPU
             0xFF4F => self.ppu.write_io(address, value),                                // PPU
@@ -242,6 +256,7 @@ impl MMU {
     }
 
     fn vram_dma(&mut self) {
+        println!("dma happening");
         let source = self.vram_dma_source;
         let dest = (self.vram_dma_dest & 0x1FF0) + 0x8000;
         let len = (self.vram_dma_len as u16 + 1) * 0x10;

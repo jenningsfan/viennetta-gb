@@ -211,13 +211,19 @@ impl PPU {
             self.vram[(address + 0x2000 * self.vram_bank as u16) as usize]
         }
         else {
+            println!("read during mode 3");
             0xFF
+            //self.vram[(address + 0x2000 * self.vram_bank as u16) as usize]
         }
     }
 
     pub fn write_vram(&mut self, address: u16, value: u8) {
         if self.mode != Mode::Drawing {
             self.vram[(address + 0x2000 * self.vram_bank as u16) as usize] = value;
+        }
+        else {
+            println!("write during mode 3 {:04X}, {:02X}", address + 0x8000, value);
+            //self.vram[(address + 0x2000 * self.vram_bank as u16) as usize] = value;
         }
     }
 
@@ -255,7 +261,7 @@ impl PPU {
             0xFF41 => self.status | 0x80,
             0xFF42 => self.scroll_y,
             0xFF43 => self.scroll_x,
-            0xFF44 => if self.line_y == 153 { 0 } else { self.line_y },
+            0xFF44 => self.line_y,
             0xFF45 => self.line_compare,
             0xFF47 => self.dmg_palettes.bg_palette,
             0xFF48 => self.dmg_palettes.obj0_palette,
@@ -334,6 +340,8 @@ impl PPU {
             self.line_y = 0;
             self.line_x = 0;
             self.status &= 0xFC;
+            self.cycles_line = 0;
+            self.mode = Mode::VBlank;
         }
 
         interrupts
@@ -590,7 +598,7 @@ impl PPU {
             self.line_y += 1;
             self.cycles_line = 0;
             self.line_x = 0;
-            
+
             if self.line_y == FRAME_SCANLINES {
                 self.line_y = 0;
                 self.mode = Mode::OAMScan;
@@ -609,6 +617,7 @@ impl PPU {
                 self.enter_oam_scan();
             }
         }
+
         interrupts
     }
 

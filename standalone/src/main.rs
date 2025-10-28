@@ -34,11 +34,14 @@ struct State {
 
 impl State {
     fn new(rom: &[u8]) -> Self {
+        let mut breakpoints = HashSet::new();
+        breakpoints.insert(0x150);
+
         Self {
             gameboy: GameBoy::new(Cartridge::new(rom)),
             mode: Mode::Normal,
             stepping: false,
-            breakpoints: HashSet::new(),
+            breakpoints,
             prev: 0,
         }
     }
@@ -76,19 +79,31 @@ impl State {
     
     fn update_debug(&mut self) -> u8 {
         // are we stepping or at a breakpoint?
-        if self.gameboy.cpu.regs.pc == 0x2941 {
-            let de = (self.gameboy.cpu.regs.d as u16) << 8 | self.gameboy.cpu.regs.e as u16;
-            let copy_len = self.gameboy.mmu.read_memory(de - 1);
-            let copy_dest = (self.gameboy.mmu.read_memory(de - 3) as u16) << 8 | self.gameboy.mmu.read_memory(de - 2) as u16;
+        // if self.gameboy.cpu.regs.pc == 0x2941 {
+        //     let de = (self.gameboy.cpu.regs.d as u16) << 8 | self.gameboy.cpu.regs.e as u16;
+        //     let copy_len = self.gameboy.mmu.read_memory(de - 1);
+        //     let copy_dest = (self.gameboy.mmu.read_memory(de - 3) as u16) << 8 | self.gameboy.mmu.read_memory(de - 2) as u16;
             
-            if copy_dest < 0x9C00 {
-                println!("len of copy: {:02X}", copy_len);
-                println!("copy dest: {:04X}", copy_dest);
-                let mut copied = String::new();
-                for i in 0..copy_len {
-                    copied += format!("{:02X} ", self.gameboy.mmu.read_memory(de + i as u16)).as_str();
-                }
-                println!("copied data: {copied}")
+        //     if copy_dest < 0x9C00 {
+        //         println!("len of copy: {:02X}", copy_len);
+        //         println!("copy dest: {:04X}", copy_dest);
+        //         let mut copied = String::new();
+        //         for i in 0..copy_len {
+        //             copied += format!("{:02X} ", self.gameboy.mmu.read_memory(de + i as u16)).as_str();
+        //         }
+        //         println!("copied data: {copied}")
+        //     }
+        // }
+
+        if self.gameboy.cpu.regs.pc == 0x2444 {
+            let bc = (self.gameboy.cpu.regs.b as u16) << 8 | self.gameboy.cpu.regs.c as u16;
+            let hl = (self.gameboy.cpu.regs.h as u16) << 8 | self.gameboy.cpu.regs.l as u16;
+            let tile = self.gameboy.mmu.read_memory(hl);
+            println!("Copied {:02X} from {:04X} to {:04X}, LY: {}", tile, hl, bc, self.gameboy.mmu.ppu.line_y);
+            
+            if self.gameboy.mmu.ppu.status & 0x3 == 3 {
+                println!("mode 3 op, hl = {hl:04X}");
+                self.stepping = true;
             }
         }
 
@@ -138,8 +153,8 @@ impl State {
                     let stat = self.gameboy.mmu.ppu.status;
                     println!("LCDC: {:02X}", self.gameboy.mmu.ppu.lcdc);
                     println!("STAT: {:02X}", stat);
-                    println!("LY: {:02X}", self.gameboy.mmu.ppu.line_y);
-                    println!("LYC: {:02X}", self.gameboy.mmu.ppu.line_compare);
+                    println!("LY: {}", self.gameboy.mmu.ppu.line_y);
+                    println!("LYC: {}", self.gameboy.mmu.ppu.line_compare);
                     println!("line cycles: {}", self.gameboy.mmu.ppu.cycles_line);
                     println!("BG pal: {:02X}", self.gameboy.mmu.ppu.dmg_palettes.bg_palette);
                     println!("OBJ0 pal: {:02X}", self.gameboy.mmu.ppu.dmg_palettes.obj0_palette);
@@ -178,7 +193,13 @@ impl State {
         let mut total_cycles = 0;
 
         while total_cycles < viennetta_gb::hardware::CYCLES_PER_FRAME && !self.stepping {
-            total_cycles += self.update_debug() as u16;
+            let cycles = self.update_debug() as u32;
+            if self.gameboy.cpu.double_speed {
+                total_cycles += cycles * 2;
+            }
+            else {
+                total_cycles += cycles * 4;           
+            }
         }
 
         if self.stepping {
