@@ -95,17 +95,17 @@ impl State {
         //     }
         // }
 
-        if self.gameboy.cpu.regs.pc == 0x2444 {
-            let bc = (self.gameboy.cpu.regs.b as u16) << 8 | self.gameboy.cpu.regs.c as u16;
-            let hl = (self.gameboy.cpu.regs.h as u16) << 8 | self.gameboy.cpu.regs.l as u16;
-            let tile = self.gameboy.mmu.read_memory(hl);
-            println!("Copied {:02X} from {:04X} to {:04X}, LY: {}", tile, hl, bc, self.gameboy.mmu.ppu.line_y);
+        // if self.gameboy.cpu.regs.pc == 0x2444 {
+        //     let bc = (self.gameboy.cpu.regs.b as u16) << 8 | self.gameboy.cpu.regs.c as u16;
+        //     let hl = (self.gameboy.cpu.regs.h as u16) << 8 | self.gameboy.cpu.regs.l as u16;
+        //     let tile = self.gameboy.mmu.read_memory(hl);
+        //     println!("Copied {:02X} from {:04X} to {:04X}, LY: {}", tile, hl, bc, self.gameboy.mmu.ppu.line_y);
             
-            if self.gameboy.mmu.ppu.status & 0x3 == 3 {
-                println!("mode 3 op, hl = {hl:04X}");
-                self.stepping = true;
-            }
-        }
+        //     if self.gameboy.mmu.ppu.status & 0x3 == 3 {
+        //         println!("mode 3 op, hl = {hl:04X}");
+        //         self.stepping = true;
+        //     }
+        // }
 
         if !(self.stepping || self.breakpoints.contains(&self.gameboy.cpu.regs.pc)) {
             self.prev = self.gameboy.cpu.regs.pc;

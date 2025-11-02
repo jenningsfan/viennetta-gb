@@ -491,26 +491,22 @@ impl PPU {
             self.win_line_counter += 1;
         }
 
-        for (i, pixel) in pixels.iter().enumerate() {
-            // Highlighting code
-            // if (pixel.0 & 0xF0) == 0xF0 {
-            //     let colour = 3 + pixel.0 & 0xF;
-            //     self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
-            //     continue;
-            // }
-
-
-            if self.is_cgb {
-
-            }
-            else {
-                let palette = match pixel.1 {
-                    DMGPalette::Background => self.dmg_palettes.bg_palette,
-                    DMGPalette::Sprite0 => self.dmg_palettes.obj0_palette,
-                    DMGPalette::Sprite1 => self.dmg_palettes.obj1_palette,
-                };
-                let colour = (palette >> (2 * pixel.0)) & 0x3;
-                self.lcd[i + self.line_y as usize * WIDTH] = DMG_COLOURS[colour as usize];
+        if !self.is_cgb {
+            for (i, pixel) in pixels.iter().enumerate() {
+                // Highlighting code
+                // if (pixel.0 & 0xF0) == 0xF0 {
+                //     let colour = 3 + pixel.0 & 0xF;
+                //     self.lcd[i + self.line_y as usize * WIDTH] = ((colour as u16) << 12) | 0x800;
+                //     continue;
+                // }
+    
+                        let palette = match pixel.1 {
+                        DMGPalette::Background => self.dmg_palettes.bg_palette,
+                        DMGPalette::Sprite0 => self.dmg_palettes.obj0_palette,
+                        DMGPalette::Sprite1 => self.dmg_palettes.obj1_palette,
+                    };
+                    let colour = (palette >> (2 * pixel.0)) & 0x3;
+                    self.lcd[i + self.line_y as usize * WIDTH] = DMG_COLOURS[colour as usize];
             }
         }
     }
